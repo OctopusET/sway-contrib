@@ -60,7 +60,7 @@ We encourage everyone to contribute to Sway-Contrib! Whether you have a new scri
 
   
 
-If you encounter any issues with Sway-Contrib or have questions, feel free to open an issue on the [issue tracker](https://github.com/your-username/sway-contrib/issues).
+If you encounter any issues with Sway-Contrib or have questions, feel free to open an issue on the [issue tracker](https://github.com/OctopusET/sway-contrib/issues).
 
   
 
