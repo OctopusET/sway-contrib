@@ -5,7 +5,7 @@
 .nh
 .ad l
 .\" Begin generated content:
-.TH "grimshot" "1" "2022-03-31"
+.TH "grimshot" "1" "2023-08-24"
 .P
 .SH NAME
 .P
@@ -40,7 +40,7 @@ order to know when the screenshot has been taken.\&
 .RE
 \fBsave\fR
 .RS 4
-Save the screenshot into a regular file.\& Grimshot will write images
+Save the screenshot into a regular file.\& Grimshot will write image
 files to \fBXDG_SCREENSHOTS_DIR\fR if this is set (or defined
 in \fBuser-dirs.\&dir\fR), or otherwise fall back to \fBXDG_PICTURES_DIR\fR.\&
 Set FILE to '\&-'\& to pipe the output to STDOUT.\&
@@ -104,6 +104,13 @@ captures it.\&
 \fIoutput\fR
 .RS 4
 Captures the currently active output.\&
+.P
+.RE
+\fIanything\fR
+.RS 4
+Allows manually selecting a single window (by clicking on it), an output (by
+clicking outside of all windows, e.\&g.\& on the status bar), or an area (by
+using click and drag).\&
 .P
 .RE
 .SH OUTPUT
