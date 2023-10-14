@@ -1,6 +1,6 @@
 # Sway-Contrib
 
-This repository is a collection of user contributions for the Sway window manager. Sway is an i3-compatible tiling window manager for Wayland, offering a lightweight, efficient, and customizable environment. Sway-Contrib is a community-driven effort to share and showcase various user-created configurations, scripts, themes, and other resources that enhance and help the Sway experience.
+This repository is a collection of user contributions for the Sway window manager. [Sway](https://github.com/swaywm/sway/) is an i3-compatible tiling window manager for Wayland, offering a lightweight, efficient, and customizable environment. Sway-Contrib is a community-driven effort to share and showcase various user-created configurations, scripts, themes, and other resources that enhance and help the Sway experience.
 
 ## Contributing
 
