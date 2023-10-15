@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def should_bind(event: i3ipc.WindowEvent) -> bool:
     "determine whether we should bind Escape key"
-    logging.debug("received event %s", event.ipc_data)
+    logger.debug("received event %s", event.ipc_data)
     match event.container:
         case i3ipc.Con(app_id="firefox", name="Picture-in-Picture", focused=True):
             return True
@@ -47,7 +47,7 @@ class Monitor:
         ipc = self.ipc
 
         def sighandler(signum, frame):
-            logging.debug("signal received, stopping event loop")
+            logger.debug("exit signal received, stopping event loop")
             ipc.main_quit()
 
         # stop event loop when we get one of these
