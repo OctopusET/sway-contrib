@@ -1,3 +1,21 @@
+"""
+Utility to selectively disable keypresses to specific windows.
+
+This program was written due to Firefox's pop-out video player closing when
+the Escape key is pressed.  I use a modal text editor (Helix) that encourages
+regularly pressing that key and it had a habit of going to the wrong window.
+
+The easiest way I could find to make this window specific key-binding change was
+via this code.  Specifically it watches focus changes until the "right" windowds
+is focused, and then causes Sway to bind the Escape key before Firefox can see
+it.  It continues to watch focus changes so that this binding can be disabled
+when another window is selected.
+
+This feels like a potentially useful pattern, please let us know:
+  https://github.com/OctopusET/sway-contrib
+of any other programs that this functionality would benefit.
+"""
+
 import argparse
 import logging
 import signal
@@ -11,7 +29,7 @@ def should_bind(event: i3ipc.WindowEvent) -> bool:
     "determine whether we should bind Escape key"
     logging.debug("received event %s", event.ipc_data)
     match event.container:
-        case i3ipc.Con(app_id="firefox", name="Picture-in-Picture"):
+        case i3ipc.Con(app_id="firefox", name="Picture-in-Picture", focused=True):
             return True
     return False
 
