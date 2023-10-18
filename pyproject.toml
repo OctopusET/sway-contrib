@@ -1,0 +1,8 @@
+[tool.ruff]
+select = ["E", "F", "B", "Q", "I"]
+target-version = "py310"
+line-length = 120
+
+[[tool.mypy.overrides]]
+module = "i3ipc"
+ignore_missing_imports = true
