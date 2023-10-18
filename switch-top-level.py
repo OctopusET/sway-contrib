@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import i3ipc
+
 #
 # This script requires i3ipc-python package (install it from a system package manager
 # or pip).
@@ -35,7 +36,7 @@ class TopLevelSwitcher:
         self.prev = None # previously focused container id
 
         self.i3 = i3ipc.Connection()
-        self.i3.on('window::focus', self.on_window_focus)
+        self.i3.on("window::focus", self.on_window_focus)
         self.i3.on(i3ipc.Event.BINDING, self.on_binding)
 
         self.update_top_level()
@@ -85,14 +86,14 @@ class TopLevelSwitcher:
         top_idx = (top_idx + diff + len(ws)) % len(ws)
         next_top = ws[top_idx]
         next_window = self.top_to_selected.get(next_top)
-        self.i3.command('[con_id=%s] focus' % next_window)
+        self.i3.command("[con_id=%s] focus" % next_window)
 
     def on_binding(self, i3, event):
-        if event.binding.command.startswith('nop top_next'):
+        if event.binding.command.startswith("nop top_next"):
             self.on_top(i3, event, 1)
-        elif event.binding.command.startswith('nop top_prev'):
+        elif event.binding.command.startswith("nop top_prev"):
             self.on_top(i3, event, -1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     TopLevelSwitcher()

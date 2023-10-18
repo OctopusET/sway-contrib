@@ -8,11 +8,12 @@
 # Based on https://github.com/maximbaz/dotfiles/blob/master/bin/i3-autoname-workspaces
 
 import argparse
-import i3ipc
 import logging
 import re
 import signal
 import sys
+
+import i3ipc
 
 WINDOW_ICONS = {
     "firefox": "",

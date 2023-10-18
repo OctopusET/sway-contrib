@@ -6,10 +6,12 @@
 # transparency strength in range of 0…1 or use the command line argument -o.
 
 import argparse
-import i3ipc
 import signal
 import sys
 from functools import partial
+
+import i3ipc
+
 
 def on_window_focus(inactive_opacity, ipc, event):
     global prev_focused
@@ -17,7 +19,7 @@ def on_window_focus(inactive_opacity, ipc, event):
 
     focused_workspace = ipc.get_tree().find_focused()
 
-    if focused_workspace == None:
+    if focused_workspace is None:
         return
 
     focused = event.container
