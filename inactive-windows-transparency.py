@@ -11,7 +11,7 @@ import signal
 import sys
 from functools import partial
 
-def on_window_focus(inactive_opacity, ipc, event):
+def on_window_focus(inactive_opacity, exception, ipc, event):
     global prev_focused
     global prev_workspace
 
@@ -23,12 +23,22 @@ def on_window_focus(inactive_opacity, ipc, event):
     focused = event.container
     workspace = focused_workspace.workspace().num
 
-    if focused.id != prev_focused.id:  # https://github.com/swaywm/sway/issues/2859
+    if focused.id != prev_focused.id and not exception in focused.marks:  # https://github.com/swaywm/sway/issues/2859
         focused.command("opacity 1")
+        if workspace == prev_workspace and not exception in prev_focused.marks:
+            prev_focused.command("opacity " + inactive_opacity)
+        prev_focused = focused
+        prev_workspace = workspace
+    if exception in focused.marks:
         if workspace == prev_workspace:
             prev_focused.command("opacity " + inactive_opacity)
         prev_focused = focused
         prev_workspace = workspace
+
+def on_window_mark(ipc, event):
+    global prev_focused
+    focused = event.container
+    prev_focused = focused
 
 
 def remove_opacity(ipc):
@@ -41,6 +51,7 @@ def remove_opacity(ipc):
 
 if __name__ == "__main__":
     transparency_val = "0.80"
+    exception_mark = "^"
 
     parser = argparse.ArgumentParser(
         description="This script allows you to set the transparency of unfocused windows in sway."
@@ -52,6 +63,13 @@ if __name__ == "__main__":
         default=transparency_val,
         help="set opacity value in range 0...1",
     )
+    parser.add_argument(
+        "--exception",
+        "-e",
+        type=str,
+        default=exception_mark,
+        help="set window mark that skip opacity",
+    )
     args = parser.parse_args()
 
     ipc = i3ipc.Connection()
@@ -61,9 +79,10 @@ if __name__ == "__main__":
     for window in ipc.get_tree():
         if window.focused:
             prev_focused = window
-        else:
+        elif not args.exception in window.marks:
             window.command("opacity " + args.opacity)
     for sig in [signal.SIGINT, signal.SIGTERM]:
         signal.signal(sig, lambda signal, frame: remove_opacity(ipc))
-    ipc.on("window::focus", partial(on_window_focus, args.opacity))
+    ipc.on("window::focus", partial(on_window_focus, args.opacity, args.exception))
+    ipc.on("window::mark", on_window_mark)
     ipc.main()
