@@ -19,34 +19,39 @@ of any other programs that this functionality would benefit.
 import argparse
 import logging
 import signal
+from dataclasses import dataclass
+from typing import Any
 
 import i3ipc
 
 logger = logging.getLogger(__name__)
 
 
-def should_bind(event: i3ipc.WindowEvent) -> bool:
-    "determine whether we should bind Escape key"
-    logger.debug("received event %s", event.ipc_data)
-    match event.container:
-        case i3ipc.Con(app_id="firefox", name="Picture-in-Picture", focused=True):
-            return True
-    return False
+@dataclass(slots=True)
+class Watch:
+    container_props: dict[str,str]
+    binds: set[str]
 
 
 class Monitor:
+    _bound: set[str]
+    watched: list[Watch]
+
     def __init__(self) -> None:
         self.ipc = i3ipc.Connection()
         self.ipc.on("window::focus", self.on_window_event)
         # firefox creates PIP window without title, so need to watch for changes
         self.ipc.on("window::title", self.on_window_event)
-        self.bound = False
+        self._bound = set()
+        self.watched = []
+
+    def bind(self, *binds: str, **props: str) -> None:
+        self.watched.append(Watch(props, set(binds)))
 
     def run(self) -> None:
         "run main i3ipc event loop"
         ipc = self.ipc
-
-        def sighandler(signum, frame):
+        def sighandler(signum: int, frame: Any) -> None:
             logger.debug("exit signal received, stopping event loop")
             ipc.main_quit()
 
@@ -58,34 +63,45 @@ class Monitor:
             ipc.main()
         finally:
             # clean up
-            self.do_unbind()
+            self.bound = set()
 
-    def on_window_event(self, ipc, event):
+    def on_window_event(self, ipc: i3ipc.Connection, event: i3ipc.WindowEvent) -> None:
         "respond to window events"
-        if should_bind(event):
-            self.do_bind()
-        else:
-            self.do_unbind()
-
-    def do_bind(self) -> None:
-        "bind Escape key so it doesn't get seen outside WM"
-        if self.bound:
+        container = event.container
+        if not container.focused:
             return
-        logger.info("ignoring escape")
-        msg = "escape ignored in firefox pip video player"
-        self.ipc.command(f"bindsym Escape exec echo '{msg}'")
-        self.bound = True
+        data = container.ipc_data
+        logger.debug("window event %s", data)
+        binds = set()
+        for watch in self.watched:
+            if all(data.get(k) == v for k, v in watch.container_props.items()):
+                    binds.update(watch.binds)
 
-    def do_unbind(self) -> None:
-        "reset binding to hopefully restore default behaviour"
-        if not self.bound:
+        self.bound = binds
+
+    @property
+    def bound(self) -> set[str]:
+        return self._bound
+
+    @bound.setter
+    def bound(self, binds: set[str]) -> None:
+        if binds == self._bound:
             return
-        logger.info("resetting escape")
-        self.ipc.command("unbindsym Escape")
-        self.bound = False
+        to_del = self._bound - binds
+        to_add = binds - self._bound
+        if to_del:
+            logger.info(f"removing binds {', '.join(to_del)}")
+        if to_add:
+            logger.info(f"adding binds {', '.join(to_add)}")
+        for bind in to_del:
+            self.ipc.command(f"unbindsym {bind}")
+        for bind in to_add:
+            msg = f"{bind} ignored due to focus monitor"
+            self.ipc.command(f"bindsym {bind} exec echo '{msg}'")
+        self._bound = binds
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="track active window to disable Esc key in Firefox popout media player",
     )
@@ -97,6 +113,9 @@ def parse_args():
     return args
 
 
+KEY_ESCAPE = "Escape"
+
+
 def main() -> None:
     args = parse_args()
     logging.basicConfig(
@@ -105,6 +124,8 @@ def main() -> None:
     )
 
     mon = Monitor()
+    # block Escape key from reaching Firefox's popout window
+    mon.bind(KEY_ESCAPE, app_id="firefox", name="Picture-in-Picture")
     mon.run()
 
 
