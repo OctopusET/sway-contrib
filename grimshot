@@ -54,7 +54,7 @@ ACTION=${1:-usage}
 SUBJECT=${2:-screen}
 FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
 
-if [ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "check" ]; then
+if [ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecopy" ] && [ "$ACTION" != "check" ]; then
   echo "Usage:"
   echo "  grimshot [--notify] [--cursor] [--wait N] (copy|save) [active|screen|output|area|window|anything] [FILE|-]"
   echo "  grimshot check"
@@ -63,6 +63,7 @@ if [ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "check" 
   echo "Commands:"
   echo "  copy: Copy the screenshot data into the clipboard."
   echo "  save: Save the screenshot to a regular file or '-' to pipe to STDOUT."
+  echo "  savecopy: Save the screenshot to a regular file and copy the data into the clipboard."
   echo "  check: Verify if required tools are installed and exit."
   echo "  usage: Show this message and exit."
   echo ""
@@ -184,6 +185,10 @@ else
     MESSAGE=$(basename "$FILE")
     notifyOk "$MESSAGE" "$TITLE"
     echo "$FILE"
+    if [ "$ACTION" = "savecopy" ]; then
+      wl-copy --type image/png < "$FILE" || die "Clipboard error"
+      notifyOk "$WHAT copied to buffer"
+    fi
   else
     notifyError "Error taking screenshot with grim"
   fi
