@@ -32,6 +32,10 @@ grimshot - a helper for screenshots within sway
 *copy*
 	Copy the screenshot data (as image/png) into the clipboard.
 
+**savecopy**
+	Save the screenshot into a regular file (see _save_ documentation) and
+	copy the screenshot data into the clipboard (see _copy_ documentation).
+
 # DESCRIPTION
 
 Grimshot is an easy-to-use screenshot utility for sway. It provides a
@@ -83,7 +87,7 @@ _anything_
 # OUTPUT
 
 Grimshot will print the filename of the captured screenshot to stdout if called
-with the _save_ subcommand.
+with the _save_ or _savecopy_ subcommands.
 
 # SEE ALSO
 

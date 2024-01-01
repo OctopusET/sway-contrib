@@ -5,7 +5,7 @@
 .nh
 .ad l
 .\" Begin generated content:
-.TH "grimshot" "1" "2023-08-24"
+.TH "grimshot" "1" "2024-01-01"
 .P
 .SH NAME
 .P
@@ -49,6 +49,12 @@ Set FILE to '\&-'\& to pipe the output to STDOUT.\&
 \fBcopy\fR
 .RS 4
 Copy the screenshot data (as image/png) into the clipboard.\&
+.P
+.RE
+\fB\fRsavecopy\fB\fR
+.RS 4
+Save the screenshot into a regular file (see \fIsave\fR documentation) and
+copy the screenshot data into the clipboard (see \fIcopy\fR documentation).\&
 .P
 .RE
 .SH DESCRIPTION
@@ -116,7 +122,7 @@ using click and drag).\&
 .SH OUTPUT
 .P
 Grimshot will print the filename of the captured screenshot to stdout if called
-with the \fIsave\fR subcommand.\&
+with the \fIsave\fR or \fIsavecopy\fR subcommands.\&
 .P
 .SH SEE ALSO
 .P
