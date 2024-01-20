@@ -1,7 +1,20 @@
 # Sway-Contrib
 [![CI](https://github.com/OctopusET/sway-contrib/actions/workflows/ci.yaml/badge.svg)](https://github.com/OctopusET/sway-contrib/actions/workflows/ci.yaml)
 
-This repository is a collection of user contributions for the Sway window manager. [Sway](https://github.com/swaywm/sway/) is an i3-compatible tiling window manager for Wayland, offering a lightweight, efficient, and customizable environment. Sway-Contrib is a community-driven effort to share and showcase various user-created configurations, scripts, themes, and other resources that enhance and help the Sway experience.
+> This repository is a collection of user contributions for the Sway window manager.
+
+[Sway](https://github.com/swaywm/sway/) is an i3-compatible tiling window manager for Wayland, offering a lightweight, efficient, and customizable environment. Sway-Contrib is a community-driven effort to share and showcase various user-created configurations, scripts, themes, and other resources that enhance and help the Sway experience.
+
+## Tools
+| Name | Description |
+| :---: | :---: |
+| autoname-workspaces.py | Adds icons to the workspace name for each open window |
+| firefox-focus-monitor.py | Utility to selectively disable keypresses to specific windows |
+| grimshot | A helper for screenshots within sway |
+| inactive-windows-transparency.py | Makes inactive windows transparent |
+| layout-per-window.py | A script keeps track of the active layout for each window |
+| switch-top-level.py | A script allows you to define two new bindings |
+
 
 ## Contributing
 
@@ -21,6 +34,9 @@ We encourage everyone to contribute to Sway-Contrib! Whether you have a new scri
 ## Support and Issues
 
 If you encounter any issues with Sway-Contrib or have questions, feel free to open an issue on the [issue tracker](https://github.com/OctopusET/sway-contrib/issues).
+
+## See also
+[Sway-Contrib Wiki](https://github.com/OctopusET/sway-contrib/wiki)
 
 ## License
 
