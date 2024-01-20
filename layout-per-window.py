@@ -7,6 +7,7 @@
 
 import i3ipc
 
+
 def on_window_focus(ipc: i3ipc.connection.Connection, event: i3ipc.events.WindowEvent):
     global windows, prev_focused
 
@@ -19,7 +20,7 @@ def on_window_focus(ipc: i3ipc.connection.Connection, event: i3ipc.events.Window
     if event.container.id in windows:
         for (kdb_id, layout_index) in windows[event.container.id].items():
             if layout_index != layouts[kdb_id]:
-                ipc.command(f"input \"{kdb_id}\" xkb_switch_layout {layout_index}")
+                ipc.command(f'input "{kdb_id}" xkb_switch_layout {layout_index}')
                 break
 
     prev_focused = event.container.id
@@ -42,7 +43,7 @@ if __name__ == "__main__":
         prev_focused = focused.id
     else:
         prev_focused = None
-    windows = {}
+    windows = {} # type: dict
 
     ipc.on("window", on_window)
     ipc.main()
