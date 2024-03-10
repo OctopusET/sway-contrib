@@ -29,7 +29,10 @@ def on_window_focus(args, ipc, event):
         focused.command("opacity " + args.focused)
         if workspace == prev_workspace:
             prev_focused.command("opacity " + args.opacity)
-        prev_focused = focused prev_workspace = workspace
+        prev_focused = focused
+        prev_workspace = workspace
+
+
 def remove_opacity(ipc, focused_opacity):
     for workspace in ipc.get_tree().workspaces():
         for w in workspace:
