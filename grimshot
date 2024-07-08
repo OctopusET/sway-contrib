@@ -85,7 +85,12 @@ notifyOk() {
 
   TITLE=${2:-"Screenshot"}
   MESSAGE=${1:-"OK"}
-  notify "$TITLE" "$MESSAGE"
+
+  if [ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]; then
+    notify "$TITLE" "$MESSAGE" -i "$FILE"
+  else
+    notify "$TITLE" "$MESSAGE"
+  fi
 }
 notifyError() {
   if [ $NOTIFY = "yes" ]; then
