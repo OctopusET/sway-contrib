@@ -183,17 +183,17 @@ fi
 
 if [ "$ACTION" = "copy" ] ; then
   takeScreenshot - "$GEOM" "$OUTPUT" | wl-copy --type image/png || die "Clipboard error"
-  notifyOk "$WHAT copied to buffer"
+  notifyOk "$WHAT copied to clipboard"
 else
   if takeScreenshot "$FILE" "$GEOM" "$OUTPUT"; then
     TITLE="Screenshot of $SUBJECT"
     MESSAGE=$(basename "$FILE")
-    notifyOk "$MESSAGE" "$TITLE"
-    echo "$FILE"
     if [ "$ACTION" = "savecopy" ]; then
       wl-copy --type image/png < "$FILE" || die "Clipboard error"
-      notifyOk "$WHAT copied to buffer"
+      MESSAGE="$MESSAGE and clipboard"
     fi
+    notifyOk "$MESSAGE" "$TITLE"
+    echo "$FILE"
   else
     notifyError "Error taking screenshot with grim"
   fi
