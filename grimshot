@@ -131,6 +131,10 @@ takeScreenshot() {
   fi
 }
 
+if [ "$WAIT" != "no" ]; then
+  sleep "$WAIT"
+fi
+
 if [ "$ACTION" = "check" ] ; then
   echo "Checking if required tools are installed. If something is missing, install it to your system and make it available in PATH..."
   check grim
@@ -175,10 +179,6 @@ elif [ "$SUBJECT" = "anything" ] ; then
   WHAT="Selection"
 else
   die "Unknown subject to take a screen shot from" "$SUBJECT"
-fi
-
-if [ "$WAIT" != "no" ]; then
-  sleep "$WAIT"
 fi
 
 if [ "$ACTION" = "copy" ] ; then
