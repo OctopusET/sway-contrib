@@ -11,9 +11,10 @@
 ## Those are needed to be installed, if unsure, run `grimshot check`
 ##
 ## See `man 1 grimshot` or `grimshot usage` for further details.
+. ./functional-helpers
 
 getTargetDirectory() {
-  test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" && \
+  test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
     . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
 
   echo "${XDG_SCREENSHOTS_DIR:-${XDG_PICTURES_DIR:-$HOME}}"
@@ -27,26 +28,26 @@ while [ $# -gt 0 ]; do
   key="$1"
 
   case $key in
-    -n|--notify)
-      NOTIFY=yes
-      shift # past argument
-      ;;
-    -c|--cursor)
-      CURSOR=yes
-      shift # past argument
-      ;;
-    -w|--wait)
-      shift
-      WAIT="$1"
-      if echo "$WAIT" | grep "[^0-9]" -q; then
-        echo "invalid value for wait '$WAIT'" >&2
-        exit 3
-      fi
-      shift
-      ;;
-    *)    # unknown option
-      break # done with parsing --flags
-      ;;
+  -n | --notify)
+    NOTIFY=yes
+    shift # past argument
+    ;;
+  -c | --cursor)
+    CURSOR=yes
+    shift # past argument
+    ;;
+  -w | --wait)
+    shift
+    WAIT="$1"
+    if echo "$WAIT" | grep "[^0-9]" -q; then
+      echo "invalid value for wait '$WAIT'" >&2
+      exit 3
+    fi
+    shift
+    ;;
+  *)      # unknown option
+    break # done with parsing --flags
+    ;;
   esac
 done
 
@@ -54,7 +55,7 @@ ACTION=${1:-usage}
 SUBJECT=${2:-screen}
 FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
 
-if [ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecopy" ] && [ "$ACTION" != "check" ]; then
+printUsageMsg() {
   echo "Usage:"
   echo "  grimshot [--notify] [--cursor] [--wait N] (copy|save) [active|screen|output|area|window|anything] [FILE|-]"
   echo "  grimshot check"
@@ -75,31 +76,34 @@ if [ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecop
   echo "  window: Manually select a window."
   echo "  anything: Manually select an area, window, or output."
   exit
-fi
+}
 
 notify() {
   notify-send -t 3000 -a grimshot "$@"
 }
+
 notifyOk() {
-  [ "$NOTIFY" = "no" ] && return
+  notify_disabled='[ "$NOTIFY" = "no" ]'
+  action_involves_saving='[ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]'
+
+  when "$notify_disabled" "return"
 
   TITLE=${2:-"Screenshot"}
   MESSAGE=${1:-"OK"}
 
-  if [ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]; then
-    notify "$TITLE" "$MESSAGE" -i "$FILE"
-  else
-    notify "$TITLE" "$MESSAGE"
-  fi
+  whenOtherwise "$action_involves_saving" \
+    'notify "$TITLE" "$MESSAGE" -i "$FILE"' \
+    'notify "$TITLE" "$MESSAGE"'
 }
+
 notifyError() {
-  if [ $NOTIFY = "yes" ]; then
-    TITLE=${2:-"Screenshot"}
-    MESSAGE=${1:-"Error taking screenshot with grim"}
-    notify -u critical "$TITLE" "$MESSAGE"
-  else
-    echo "$1"
-  fi
+  notify_enabled='[ "$NOTIFY" = "yes" ]'
+  TITLE=${2:-"Screenshot"}
+  MESSAGE=${1:-"Error taking screenshot with grim"}
+
+  whenOtherwise "$notify_enabled" \
+    'notify -u critical "$TITLE" "$MESSAGE"' \
+    'echo "$1"'
 }
 
 die() {
@@ -110,11 +114,12 @@ die() {
 
 check() {
   COMMAND=$1
-  if command -v "$COMMAND" > /dev/null 2>&1; then
-    RESULT="OK"
-  else
-    RESULT="NOT FOUND"
-  fi
+  command_exists='command -v "$COMMAND" > /dev/null 2>&1'
+
+  whenOtherwise "$command_exists" \
+    'RESULT="OK"' \
+    'RESULT="NOT FOUND"'
+
   echo "   $COMMAND: $RESULT"
 }
 
@@ -122,16 +127,20 @@ takeScreenshot() {
   FILE=$1
   GEOM=$2
   OUTPUT=$3
-  if [ -n "$OUTPUT" ]; then
-    grim ${CURSOR:+-c} -o "$OUTPUT" "$FILE" || die "Unable to invoke grim"
-  elif [ -z "$GEOM" ]; then
-    grim ${CURSOR:+-c} "$FILE" || die "Unable to invoke grim"
-  else
-    grim ${CURSOR:+-c} -g "$GEOM" "$FILE" || die "Unable to invoke grim"
-  fi
-}
 
-if [ "$ACTION" = "check" ] ; then
+  output_provided='[ -n "$OUTPUT" ]'
+  geom_not_provided='[ -z "$GEOM" ]'
+
+  output_action='grim ${CURSOR:+-c} -o "$OUTPUT" "$FILE" || die "Unable to invoke grim"'
+  full_screenshot_action='grim ${CURSOR:+-c} "$FILE" || die "Unable to invoke grim"'
+  geometry_screenshot_action='grim ${CURSOR:+-c} -g "$GEOM" "$FILE" || die "Unable to invoke grim"'
+
+  any \
+    "$output_provided:$output_action" \
+    "$geom_not_provided:$full_screenshot_action" \
+    "true:$geometry_screenshot_action"
+}
+checkRequiredTools() {
   echo "Checking if required tools are installed. If something is missing, install it to your system and make it available in PATH..."
   check grim
   check slurp
@@ -140,61 +149,103 @@ if [ "$ACTION" = "check" ] ; then
   check jq
   check notify-send
   exit
-elif [ "$SUBJECT" = "area" ] ; then
+}
+
+selectArea() {
   GEOM=$(slurp -d)
-  # Check if user exited slurp without selecting the area
-  if [ -z "$GEOM" ]; then
-    exit 1
-  fi
+  geomIsEmpty='[ -z "$GEOM" ]'
+  when "$geomIsEmpty" "exit 1"
   WHAT="Area"
-elif [ "$SUBJECT" = "active" ] ; then
+}
+
+selectActiveWindow() {
   FOCUSED=$(swaymsg -t get_tree | jq -r 'recurse(.nodes[]?, .floating_nodes[]?) | select(.focused)')
   GEOM=$(echo "$FOCUSED" | jq -r '.rect | "\(.x),\(.y) \(.width)x\(.height)"')
   APP_ID=$(echo "$FOCUSED" | jq -r '.app_id')
   WHAT="$APP_ID window"
-elif [ "$SUBJECT" = "screen" ] ; then
+}
+
+selectScreen() {
   GEOM=""
   WHAT="Screen"
-elif [ "$SUBJECT" = "output" ] ; then
+}
+
+selectOutput() {
   GEOM=""
   OUTPUT=$(swaymsg -t get_outputs | jq -r '.[] | select(.focused)' | jq -r '.name')
   WHAT="$OUTPUT"
-elif [ "$SUBJECT" = "window" ] ; then
+}
+
+selectWindow() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -r)
-  # Check if user exited slurp without selecting the area
-  if [ -z "$GEOM" ]; then
-   exit 1
-  fi
+  geomIsEmpty='[ -z "$GEOM" ]'
+  when "$geomIsEmpty" "exit 1"
   WHAT="Window"
-elif [ "$SUBJECT" = "anything" ] ; then
+}
+
+selectAnything() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -o)
-  # Check if user exited slurp without selecting the area
-  if [ -z "$GEOM" ]; then
-    exit
-  fi
+  geomIsEmpty='[ -z "$GEOM" ]'
+  when "$geomIsEmpty" "exit 1"
   WHAT="Selection"
-else
-  die "Unknown subject to take a screen shot from" "$SUBJECT"
-fi
+}
+handleSaveCopy() {
+  wl-copy --type image/png <"$FILE" || die "Clipboard error"
+  MESSAGE="$MESSAGE and clipboard"
+}
 
-if [ "$WAIT" != "no" ]; then
-  sleep "$WAIT"
-fi
+handleScreenshotSuccess() {
+  TITLE="Screenshot of $SUBJECT"
+  MESSAGE=$(basename "$FILE")
+  isSaveCopy='[ "$ACTION" = "savecopy" ]'
+  when "$isSaveCopy" "handleSaveCopy"
+  notifyOk "$MESSAGE" "$TITLE"
+  echo "$FILE"
+}
 
-if [ "$ACTION" = "copy" ] ; then
+handleScreenshotFailure() {
+  notifyError "Error taking screenshot with grim"
+}
+
+handleCopy() {
   takeScreenshot - "$GEOM" "$OUTPUT" | wl-copy --type image/png || die "Clipboard error"
   notifyOk "$WHAT copied to clipboard"
-else
-  if takeScreenshot "$FILE" "$GEOM" "$OUTPUT"; then
-    TITLE="Screenshot of $SUBJECT"
-    MESSAGE=$(basename "$FILE")
-    if [ "$ACTION" = "savecopy" ]; then
-      wl-copy --type image/png < "$FILE" || die "Clipboard error"
-      MESSAGE="$MESSAGE and clipboard"
-    fi
-    notifyOk "$MESSAGE" "$TITLE"
-    echo "$FILE"
-  else
-    notifyError "Error taking screenshot with grim"
-  fi
-fi
+}
+
+handleSave() {
+  screenshotTaken="takeScreenshot \"$FILE\" \"$GEOM\" \"$OUTPUT\""
+  whenOtherwise "$screenshotTaken" \
+    "handleScreenshotSuccess" \
+    "handleScreenshotFailure"
+}
+
+handleScreenshot() {
+  actionIsInvalid='[ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecopy" ] && [ "$ACTION" != "check" ]'
+  actionIsCheck='[ "$ACTION" = "check" ]'
+  subjectIsArea='[ "$SUBJECT" = "area" ]'
+  subjectIsActiveWindow='[ "$SUBJECT" = "active" ]'
+  subjectIsScreen='[ "$SUBJECT" = "screen" ]'
+  subjectIsOutput='[ "$SUBJECT" = "output" ]'
+  subjectIsWindow='[ "$SUBJECT" = "window" ]'
+  subjectIsAnything='[ "$SUBJECT" = "anything" ]'
+
+  any \
+    "$actionIsInvalid:printUsageMsg" \
+    "$actionIsCheck:checkRequiredTools" \
+    "$subjectIsArea:selectArea" \
+    "$subjectIsActiveWindow:selectActiveWindow" \
+    "$subjectIsScreen:selectScreen" \
+    "$subjectIsOutput:selectOutput" \
+    "$subjectIsWindow:selectWindow" \
+    "$subjectIsAnything:selectAnything" || die "Unknown subject to take a screenshot from" "$SUBJECT"
+
+  wait='[ "$WAIT" != "no" ]'
+  when "$wait" "sleep $WAIT"
+
+  actionIsCopy='[ "$ACTION" = "copy" ]'
+
+  whenOtherwise "$actionIsCopy" \
+    "handleCopy" \
+    "handleSave"
+}
+handleScreenshot
