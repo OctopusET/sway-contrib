@@ -25,17 +25,17 @@ getTargetDirectory() {
 }
 
 parseArgs() {
-  while [ $# -gt 0 ]; do
-    key="$1"
+  POSITIONAL_ARGS=""
 
-    case $key in
+  while [ $# -gt 0 ]; do
+    case "$1" in
     -n | --notify)
       NOTIFY=yes
-      shift # past argument
+      shift
       ;;
     -c | --cursor)
       CURSOR=yes
-      shift # past argument
+      shift
       ;;
     -w | --wait)
       shift
@@ -46,12 +46,14 @@ parseArgs() {
       fi
       shift
       ;;
-    *)      # unknown option
-      break # done with parsing --flags
+    *)                                      # Treat anything else as a positional argument
+      POSITIONAL_ARGS="$POSITIONAL_ARGS $1" # Add positional argument to the string
+      shift
       ;;
     esac
   done
 
+  set -- $POSITIONAL_ARGS # Re-assign positional arguments
   ACTION=${1:-usage}
   SUBJECT=${2:-screen}
   FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
@@ -102,11 +104,12 @@ notifyOk() {
 notifyError() {
   notify_enabled='[ "$NOTIFY" = "yes" ]'
   TITLE=${2:-"Screenshot"}
-  MESSAGE=${1:-"Error taking screenshot with grim"}
+  errorMssg=$1
+  MESSAGE=${errorMssg:-"Error taking screenshot with grim"}
 
   whenOtherwise "$notify_enabled" \
-    'notify -u critical "$TITLE" "$MESSAGE"' \
-    'echo "$1"'
+    'notify "$TITLE" "$MESSAGE" -u critical' \
+    'echo "$errorMssg"'
 }
 
 die() {
