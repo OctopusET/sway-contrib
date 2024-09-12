@@ -13,6 +13,10 @@
 ## See `man 1 grimshot` or `grimshot usage` for further details.
 . ./functional-helpers
 
+NOTIFY=no
+CURSOR=
+WAIT=no
+
 getTargetDirectory() {
   test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
     . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
@@ -20,40 +24,39 @@ getTargetDirectory() {
   echo "${XDG_SCREENSHOTS_DIR:-${XDG_PICTURES_DIR:-$HOME}}"
 }
 
-NOTIFY=no
-CURSOR=
-WAIT=no
+parseArgs() {
+  while [ $# -gt 0 ]; do
+    key="$1"
 
-while [ $# -gt 0 ]; do
-  key="$1"
+    case $key in
+    -n | --notify)
+      NOTIFY=yes
+      shift # past argument
+      ;;
+    -c | --cursor)
+      CURSOR=yes
+      shift # past argument
+      ;;
+    -w | --wait)
+      shift
+      WAIT="$1"
+      if echo "$WAIT" | grep "[^0-9]" -q; then
+        echo "invalid value for wait '$WAIT'" >&2
+        exit 3
+      fi
+      shift
+      ;;
+    *)      # unknown option
+      break # done with parsing --flags
+      ;;
+    esac
+  done
 
-  case $key in
-  -n | --notify)
-    NOTIFY=yes
-    shift # past argument
-    ;;
-  -c | --cursor)
-    CURSOR=yes
-    shift # past argument
-    ;;
-  -w | --wait)
-    shift
-    WAIT="$1"
-    if echo "$WAIT" | grep "[^0-9]" -q; then
-      echo "invalid value for wait '$WAIT'" >&2
-      exit 3
-    fi
-    shift
-    ;;
-  *)      # unknown option
-    break # done with parsing --flags
-    ;;
-  esac
-done
+  ACTION=${1:-usage}
+  SUBJECT=${2:-screen}
+  FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
 
-ACTION=${1:-usage}
-SUBJECT=${2:-screen}
-FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
+}
 
 printUsageMsg() {
   echo "Usage:"
@@ -218,7 +221,9 @@ handleSave() {
     "handleScreenshotSuccess" \
     "handleScreenshotFailure"
 }
-
+handleUnknownSubject() {
+  die "Unknown subject to take a screenshot from" "$SUBJECT"
+}
 handleScreenshot() {
   actionIsInvalid='[ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecopy" ] && [ "$ACTION" != "check" ]'
   actionIsCheck='[ "$ACTION" = "check" ]'
@@ -228,7 +233,7 @@ handleScreenshot() {
   subjectIsOutput='[ "$SUBJECT" = "output" ]'
   subjectIsWindow='[ "$SUBJECT" = "window" ]'
   subjectIsAnything='[ "$SUBJECT" = "anything" ]'
-
+  subjectIsUnknown=true
   any \
     "$actionIsInvalid:printUsageMsg" \
     "$actionIsCheck:checkRequiredTools" \
@@ -237,7 +242,8 @@ handleScreenshot() {
     "$subjectIsScreen:selectScreen" \
     "$subjectIsOutput:selectOutput" \
     "$subjectIsWindow:selectWindow" \
-    "$subjectIsAnything:selectAnything" || die "Unknown subject to take a screenshot from" "$SUBJECT"
+    "$subjectIsAnything:selectAnything" \
+    "$subjectIsUnknown:handleUnknownSubject"
 
   wait='[ "$WAIT" != "no" ]'
   when "$wait" "sleep $WAIT"
@@ -248,4 +254,6 @@ handleScreenshot() {
     "handleCopy" \
     "handleSave"
 }
+
+parseArgs "$@"
 handleScreenshot
