@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+'''
+grimpicker: a simple color picker for wlroots
+
+Dependencies:
+`slurp`: utility to select a region
+`grim`: utility to make screenshots
+
+Recommendations:
+`wl-copy`: clipboard utility
+`notify-send`: desktop notifications sender
+'''
+
+__pkgname__ = 'grimpicker'
+__version__ = '1.0.0'
+
+import argparse
+import subprocess
+import sys
+
+
+class Color:
+    escape = b'\x1b'
+    reset_fg = escape + b'[39m'
+    reset_bg = escape + b'[49m'
+    reset_all = escape + b'[0m'
+
+    escape_str = '\\e'
+    reset_fg_str = escape_str + '[39m'
+    reset_bg_str = escape_str + '[49m'
+    reset_all_str = escape_str + '[0m'
+
+    def __init__(self, r: int, g: int, b: int):
+        (self.r, self.g, self.b) = (r, g, b)
+
+    @classmethod
+    def decode_ppm_pixel(cls, ppm: bytes):
+        ppm_lines = ppm.splitlines()
+        if not (len(ppm_lines) == 4 and ppm_lines[:3] == [b'P6', b'1 1', b'255'] and len(ppm_lines[3]) == 3):
+            raise ValueError('only 1x1 pixel ppm P6 format without comments is supported, no HDR')
+        return cls(*ppm_lines[3])
+
+    def to_hex(self) -> str:
+        return '#{:0>2X}{:0>2X}{:0>2X}'.format(self.r, self.g, self.b)
+
+    def to_escape_fg(self) -> bytes:
+        return b'%b[38;2;%d;%d;%dm' % (self.escape, self.r, self.g, self.b)
+
+    def to_escape_bg(self) -> bytes:
+        return b'%b[48;2;%d;%d;%dm' % (self.escape, self.r, self.g, self.b)
+
+    def to_escape_fg_str(self) -> str:
+        return '{}[38;2;{};{};{}m'.format(self.escape_str, self.r, self.g, self.b)
+
+    def to_escape_bg_str(self) -> str:
+        return '{}[48;2;{};{};{}m'.format(self.escape_str, self.r, self.g, self.b)
+
+
+def run(args) -> None:
+    slurp = subprocess.check_output(('slurp', '-p'))
+    grim = subprocess.check_output(('grim', '-g', '-', '-t', 'ppm', '-'), input=slurp)
+    color = Color.decode_ppm_pixel(grim)
+
+    if not (args.print or args.draw or args.escape or args.copy or args.notify):
+        args.print = True
+        args.draw = True
+
+    if args.print:
+        print(color.to_hex())
+    if args.draw:
+        sys.stdout.buffer.write(color.to_escape_bg() + b' ' * 7 + color.reset_bg + b'\n')
+    if args.escape:
+        sys.stdout.buffer.write(
+            b'Truecolor terminal shell escape sequences:\n' +
+
+            b'%bTo change foreground:%b ' % (color.to_escape_fg(), color.reset_fg) +
+            b'echo -e "%b", to reset: ' % color.to_escape_fg_str().encode() +
+            b'echo -e "%b"\n' % color.reset_fg_str.encode() +
+
+            b'%bTo change background:%b ' % (color.to_escape_bg(), color.reset_bg) +
+            b'echo -e "%b", to reset: ' % color.to_escape_bg_str().encode() +
+            b'echo -e "%b"\n' % color.reset_bg_str.encode() +
+
+            b'To reset all attributes: echo -e "%b"\n' % color.reset_all_str.encode()
+        )
+    if args.copy:
+        subprocess.run(('wl-copy', color.to_hex()), check=True)
+    if args.notify:
+        subprocess.run(('notify-send', color.to_hex()), check=True)
+
+
+def parse_args() -> argparse.Namespace:
+    usage = '{} [OPTIONS]'.format(__pkgname__)
+    version = '{} {}'.format(__pkgname__, __version__)
+    epilog = 'See `man 1 grimpicker` for further details'
+    parser = argparse.ArgumentParser(usage=usage, add_help=False, epilog=epilog)
+    parser.add_argument('-p', '--print', dest='print', action='store_true', help='Print to stdout')
+    parser.add_argument('-d', '--draw', dest='draw', action='store_true', help='Draw a colored block')
+    parser.add_argument('-e', '--escape', dest='escape', action='store_true', help='Print shell escape sequences')
+    parser.add_argument('-c', '--copy', dest='copy', action='store_true', help='Copy to clipboard')
+    parser.add_argument('-n', '--notify', dest='notify', action='store_true', help='Send a notification')
+    parser.add_argument('-h', '--help', action='help', help='Show help message and quit')
+    parser.add_argument('-v', '--version', action='version', version=version, help='Show version number and quit')
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    run(parse_args())
