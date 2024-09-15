@@ -10,6 +10,7 @@
 | :---: | :---: |
 | autoname-workspaces.py | Adds icons to the workspace name for each open window |
 | firefox-focus-monitor.py | Utility to selectively disable keypresses to specific windows |
+| grimpicker | A simple color picker for wlroots |
 | grimshot | A helper for screenshots within sway |
 | inactive-windows-transparency.py | Makes inactive windows transparent |
 | layout-per-window.py | A script keeps track of the active layout for each window |
