@@ -45,7 +45,6 @@ any() {
   return 1  # No conditions matched
 }
 
-
 NOTIFY=no
 CURSOR=
 WAIT=no

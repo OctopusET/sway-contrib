@@ -1,0 +1,33 @@
+#! /bin/sh
+when() {
+  condition=$1
+  action=$2
+
+  if eval "$condition"; then
+    eval "$action"
+  fi
+}
+
+whenOtherwise() {
+  condition=$1
+  true_action=$2
+  false_action=$3
+
+  if eval "$condition"; then
+    eval "$true_action"
+  else
+    eval "$false_action"
+  fi
+}
+
+any() {
+  for tuple in "$@"; do
+    condition=$(echo "$tuple" | cut -d: -f1)
+    action=$(echo "$tuple" | cut -d: -f2-)
+    if eval "$condition"; then
+      eval "$action"
+      return 0
+    fi
+  done
+  return 1  # No conditions matched
+}
