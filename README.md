@@ -42,3 +42,6 @@ If you encounter any issues with Sway-Contrib or have questions, feel free to op
 ## License
 
 The Sway-Contrib repository is licensed under the [MIT License](LICENSE). By contributing to this project, you agree that your contributions will be licensed under the same license.
+
+## Packaging status
+[![Packaging status](https://repology.org/badge/vertical-allrepos/sway-contrib.svg)](https://repology.org/project/sway-contrib/versions)
