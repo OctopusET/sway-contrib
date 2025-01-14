@@ -37,9 +37,29 @@ class Color:
     @classmethod
     def decode_ppm_pixel(cls, ppm: bytes):
         ppm_lines = ppm.splitlines()
-        if not (len(ppm_lines) == 4 and ppm_lines[:3] == [b'P6', b'1 1', b'255'] and len(ppm_lines[3]) == 3):
+        scales = ppm_lines[1].split(b' ')
+        scale = int(scales[0])
+
+        if not scale == int(scales[1]):
+            raise ValueError("Unknown output scaling used")
+
+        if not (len(ppm_lines) == 4 and ppm_lines[0] == b'P6' and ppm_lines[2] == b'255' and len(ppm_lines[3]) == scale * scale * 3):
             raise ValueError('only 1x1 pixel ppm P6 format without comments is supported, no HDR')
-        return cls(*ppm_lines[3])
+
+        #if we are dealing with multiple pixels, average them.
+        r = 0
+        g = 0
+        b = 0
+        for s in range(0, scale * scale):
+            r += ppm_lines[3][s * 3 + 0]
+            g += ppm_lines[3][s * 3 + 1]
+            b += ppm_lines[3][s * 3 + 2]
+
+        r /= scale * scale
+        g /= scale * scale
+        b /= scale * scale
+
+        return cls(int(r), int(g), int(b))
 
     def to_hex(self) -> str:
         return '#{:0>2X}{:0>2X}{:0>2X}'.format(self.r, self.g, self.b)
