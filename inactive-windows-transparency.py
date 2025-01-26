@@ -13,15 +13,14 @@ from functools import partial
 import i3ipc
 
 
-def on_window_focus(args, ipc, event):
+def on_window(args, ipc, event):
     global focused_set
 
     # To get the workspace for a container, we need to have received its
     # parents, so fetch the whole tree
     tree = ipc.get_tree()
 
-    focused_id = event.container.id
-    focused = tree.find_by_id(focused_id)
+    focused = tree.find_focused()
     focused_workspace = focused.workspace()
 
     focused.command("opacity " + args.focused)
@@ -79,5 +78,5 @@ if __name__ == "__main__":
             window.command("opacity " + args.opacity)
     for sig in [signal.SIGINT, signal.SIGTERM]:
         signal.signal(sig, lambda signal, frame: remove_opacity(ipc, args.focused))
-    ipc.on("window::focus", partial(on_window_focus, args))
+    ipc.on("window", partial(on_window, args))
     ipc.main()
