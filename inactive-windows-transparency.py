@@ -33,7 +33,7 @@ def on_window(args, ipc, event):
         window = tree.find_by_id(window_id)
         if window is None:
             to_remove.add(window_id)
-        elif window.workspace() == focused_workspace:
+        elif args.global_focus or window.workspace() == focused_workspace:
             window.command("opacity " + args.opacity)
             to_remove.add(window_id)
 
@@ -64,6 +64,12 @@ if __name__ == "__main__":
         type=str,
         default="1.0",
         help="set focused opacity value in range 0...1",
+    )
+    parser.add_argument(
+        "--global-focus",
+        "-g",
+        action="store_true",
+        help="only have one opaque window across all workspaces",
     )
     args = parser.parse_args()
 
