@@ -14,24 +14,31 @@ import i3ipc
 
 
 def on_window_focus(args, ipc, event):
-    global prev_focused
-    global prev_workspace
+    global focused_set
 
-    focused_workspace = ipc.get_tree().find_focused()
+    # To get the workspace for a container, we need to have received its
+    # parents, so fetch the whole tree
+    tree = ipc.get_tree()
 
-    if focused_workspace is None:
-        return
+    focused_id = event.container.id
+    focused = tree.find_by_id(focused_id)
+    focused_workspace = focused.workspace()
 
-    focused = event.container
-    workspace = focused_workspace.workspace().num
+    focused.command("opacity " + args.focused)
+    focused_set.add(focused.id)
 
-    if focused.id != prev_focused.id:  # https://github.com/swaywm/sway/issues/2859
-        focused.command("opacity " + args.focused)
-        if workspace == prev_workspace:
-            prev_focused.command("opacity " + args.opacity)
-        prev_focused = focused
-        prev_workspace = workspace
+    to_remove = set()
+    for window_id in focused_set:
+        if window_id == focused.id:
+            continue
+        window = tree.find_by_id(window_id)
+        if window is None:
+            to_remove.add(window_id)
+        elif window.workspace() == focused_workspace:
+            window.command("opacity " + args.opacity)
+            to_remove.add(window_id)
 
+    focused_set -= to_remove
 
 def remove_opacity(ipc, focused_opacity):
     for workspace in ipc.get_tree().workspaces():
@@ -62,12 +69,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ipc = i3ipc.Connection()
-    prev_focused = None
-    prev_workspace = ipc.get_tree().find_focused().workspace().num
+    focused_set = set()
 
     for window in ipc.get_tree():
         if window.focused:
-            prev_focused = window
+            focused_set.add(window.id)
+            window.command("opacity " + args.focused)
         else:
             window.command("opacity " + args.opacity)
     for sig in [signal.SIGINT, signal.SIGTERM]:
