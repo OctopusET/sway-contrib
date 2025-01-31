@@ -123,7 +123,9 @@ notifyOk() {
   notify_disabled='[ "$NOTIFY" = "no" ]'
   action_involves_saving='[ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]'
 
-  when "$notify_disabled" "return"
+  if eval $notify_disabled; then
+	  return
+  fi
 
   TITLE=${2:-"Screenshot"}
   MESSAGE=${1:-"OK"}
