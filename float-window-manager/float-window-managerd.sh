@@ -41,10 +41,12 @@ else
 fi
 
 
+min_version="1.6"
 version=$(swaymsg -t get_version | jq -r '.human_readable')
-if [[ "$version" < "1.6" ]]; then
+if [ "$(echo -e "$version\n$min_version" | sort -V | head -n 1)" != "$min_version" ]; then
+  # True if $version is less than $min_version
 	echo This version of Sway is earlier than supports moving windows with percentages.
-	echo Version is \'"$version"\'. Version needed: \'1.6\'.
+	echo Version is \'"$version"\'. Version needed: \'"$min_version"\'.
 	exit 1
 fi
 
