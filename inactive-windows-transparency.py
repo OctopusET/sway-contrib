@@ -21,6 +21,9 @@ def on_window(args, ipc, event):
     tree = ipc.get_tree()
 
     focused = tree.find_focused()
+    if focused is None:
+        return
+
     focused_workspace = focused.workspace()
 
     focused.command("opacity " + args.focused)
