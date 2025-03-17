@@ -21,19 +21,20 @@ def on_window(args, ipc, event):
     tree = ipc.get_tree()
 
     focused = tree.find_focused()
-    focused_workspace = focused.workspace()
+    if focused is not None:
+        focused_workspace = focused.workspace()
 
-    focused.command("opacity " + args.focused)
-    focused_set.add(focused.id)
+        focused.command("opacity " + args.focused)
+        focused_set.add(focused.id)
 
     to_remove = set()
     for window_id in focused_set:
-        if window_id == focused.id:
+        if focused is not None and window_id == focused.id:
             continue
         window = tree.find_by_id(window_id)
         if window is None:
             to_remove.add(window_id)
-        elif args.global_focus or window.workspace() == focused_workspace:
+        elif args.global_focus or (focused is not None and window.workspace() == focused_workspace):
             window.command("opacity " + args.opacity)
             to_remove.add(window_id)
 
