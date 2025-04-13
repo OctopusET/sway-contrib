@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 
+# This script requires i3ipc-python package (install it from a system package
+# manager or pip).
+# The script "stacks" numbered workspaces 1-10 onto 11-20, 21-30, etc
+# Useful for hoarding workspaces, or if you're working on a project and need
+# to focus on something else, but don't wanna close your workspaces
+# This script doesn't proivde a way to view workspaces in the stack, nor does it
+# expect you to provide one in your sway config. The stack is for storage; pop
+# workspaces onto the "home row" (1-10) to view them.
+
+# Example sway config:
+#
+# set $mod Mod4
+# set $alt Mod1
+# bindsym $mod+$alt+s exec /path/to/swaystack.py --up
+# bindsym $mod+$alt+d exec /path/to/swaystack.py --down
+# bindsym $mod+$alt+r exec /path/to/swaystack.py --rot-down
+# bindsym $mod+$alt+e exec /path/to/swaystack.py --rot-up
+
 import argparse
 import i3ipc
-
-# minimal code reuse because of weird edge cases in each
-# better just to have separate functions imo
-# could improve code reuse, but the easy way adds flickering and the hard way
-# is probably worse
 
 def shift_up(workspace):
     workspace_num = workspace.num
@@ -117,27 +130,29 @@ def rotate_up(workspace):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Workspace stacking! For hoarding workspaces!"
+        description="Workspace stacking, for hoarding workspaces. Requires "
+        "numerical workspaces 1-10."
     )
-    parser.add_argument(
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument(
         "--up",
         action='store_true',
-        help="push stack",
+        help="Push non-empty focused workspace onto stack (default)",
     )
-    parser.add_argument(
+    action.add_argument(
         "--down",
         action='store_true',
-        help="pop stack",
+        help="Pop top of stack onto empty focused workspace",
     )
-    parser.add_argument(
+    action.add_argument(
         "--rot-down",
         action='store_true',
-        help="pop stack",
+        help="Rotate down along the focused workspace stack",
     )
-    parser.add_argument(
+    action.add_argument(
         "--rot-up",
         action='store_true',
-        help="pop stack",
+        help="Rotate up along the focused workspace stack",
     )
     args = parser.parse_args()
 
@@ -152,4 +167,3 @@ if __name__ == "__main__":
         rotate_up(focused)
     else:
         shift_up(focused)
-
