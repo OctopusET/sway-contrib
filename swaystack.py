@@ -19,7 +19,9 @@
 # bindsym $mod+$alt+e exec /path/to/swaystack.py --rot-up
 
 import argparse
+
 import i3ipc
+
 
 def shift_up(workspace):
     workspace_num = workspace.num
@@ -130,22 +132,22 @@ if __name__ == "__main__":
     action = parser.add_mutually_exclusive_group()
     action.add_argument(
         "--up",
-        action='store_true',
+        action="store_true",
         help="Push non-empty focused workspace onto stack (default)",
     )
     action.add_argument(
         "--down",
-        action='store_true',
+        action="store_true",
         help="Pop top of stack onto empty focused workspace",
     )
     action.add_argument(
         "--rot-down",
-        action='store_true',
+        action="store_true",
         help="Rotate down along the focused workspace stack",
     )
     action.add_argument(
         "--rot-up",
-        action='store_true',
+        action="store_true",
         help="Rotate up along the focused workspace stack",
     )
     args = parser.parse_args()
