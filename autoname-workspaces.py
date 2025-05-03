@@ -62,7 +62,7 @@ def undo_window_renaming(ipc):
 
 def parse_workspace_name(name):
     return re.match(
-        "(?P<num>[0-9]+):?(?P<shortname>\w+)? ?(?P<icons>.+)?", name
+        r"(?P<num>[0-9]+):?(?P<shortname>\w+)? ?(?P<icons>.+)?", name
     ).groupdict()
 
 
