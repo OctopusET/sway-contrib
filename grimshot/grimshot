@@ -88,7 +88,12 @@ parseArgs() {
   set -- $POSITIONAL_ARGS # Re-assign positional arguments
   ACTION=${1:-usage}
   SUBJECT=${2:-screen}
-  FILE=${3:-$(getTargetDirectory)/$(date -Ins).png}
+  if [ -n "$GRIMSHOT_FILENAME_FORMAT" ]; then
+    FILENAME=$GRIMSHOT_FILENAME_FORMAT
+  else
+    FILENAME=$(date -Ins)
+  fi
+  FILE=${3:-$(getTargetDirectory)/$FILENAME.png}
 
 }
 

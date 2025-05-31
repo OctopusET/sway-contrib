@@ -28,6 +28,7 @@ grimshot - a helper for screenshots within sway
 	files to *XDG_SCREENSHOTS_DIR* if this is set (or defined
 	in *user-dirs.dir*), or otherwise fall back to *XDG_PICTURES_DIR*.
 	Set FILE to '-' to pipe the output to STDOUT.
+	Set GRIMSHOT_FILENAME_FORMAT env variable to override the default filename.
 
 *copy*
 	Copy the screenshot data (as image/png) into the clipboard.
@@ -57,6 +58,12 @@ bindsym Mod4+p       exec grimshot save active
 bindsym Mod4+Shift+p exec grimshot save area
 bindsym Mod4+Mod1+p  exec grimshot save output
 bindsym Mod4+Ctrl+p  exec grimshot save window
+```
+
+And/or add these environment variables to your shell configuration:
+
+```
+export GRIMSHOT_FILENAME_FORMAT="$(date --iso-8601=ns | tr ':' -)"
 ```
 
 # TARGETS
