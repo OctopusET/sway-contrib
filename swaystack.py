@@ -32,11 +32,6 @@ def get_stack_top(stack_num):
 
 def workspace_push(workspace):
     workspace_num = workspace.num
-
-    # only call from "home row"
-    if not (workspace_num >= 1 and workspace_num <= 10):
-        return
-
     top_num = get_stack_top(workspace_num)
 
     # if not empty, push onto stack
@@ -47,11 +42,6 @@ def workspace_push(workspace):
 
 def workspace_pop(workspace):
     workspace_num = workspace.num
-
-    # only call from "home row"
-    if not (workspace_num >= 1 and workspace_num <= 10):
-        return
-
     top_num = get_stack_top(workspace_num)
 
     # if empty, pop from stack
@@ -62,16 +52,11 @@ def workspace_pop(workspace):
 
 def workspace_pop_rotate(workspace):
     workspace_num = workspace.num
-
-    # only call from "home row"
-    if not (workspace_num >= 1 and workspace_num <= 10):
-        return
-
     top_num = get_stack_top(workspace_num)
 
     # if workspace not empty, rotate stack before pop
     if workspace.leaves():
-        for n in range(top_num, 0, -10):
+        for n in range(top_num, workspace_num-1, -10):
             ipc.command(f"rename workspace {n} to {n+10}")
 
         top_num += 10
@@ -83,11 +68,6 @@ def workspace_pop_rotate(workspace):
 
 def workspace_push_rotate(workspace):
     workspace_num = workspace.num
-
-    # only call from "home row"
-    if not (workspace_num >= 1 and workspace_num <= 10):
-        return
-
     top_num = get_stack_top(workspace_num)
 
     # if workspace not empty, push before rotate
@@ -97,7 +77,7 @@ def workspace_push_rotate(workspace):
 
     # rotate
     ipc.command(f"workspace {workspace_num+10}")
-    for n in range(workspace_num+10, top_num+10, 10):
+    for n in range(workspace_num+10, top_num+1, 10):
         ipc.command(f"rename workspace {n} to {n-10}")
 
 
@@ -131,6 +111,10 @@ if __name__ == "__main__":
 
     ipc = i3ipc.Connection()
     focused = ipc.get_tree().find_focused().workspace()
+
+    # only call from "home row"
+    if not (focused.num >= 1 and focused.num <= 10):
+        exit(1)
 
     if args.pop:
         workspace_pop(focused)
