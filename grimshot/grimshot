@@ -129,7 +129,7 @@ notifyOk() {
   action_involves_saving='[ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]'
 
   if eval $notify_disabled; then
-	  return
+    return
   fi
 
   TITLE=${2:-"Screenshot"}
