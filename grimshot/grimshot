@@ -18,18 +18,6 @@ echo() {
   printf '%b\n' "$*"
 }
 
-whenOtherwise() {
-  condition=$1
-  true_action=$2
-  false_action=$3
-
-  if eval "$condition"; then
-    eval "$true_action"
-  else
-    eval "$false_action"
-  fi
-}
-
 any() {
   for tuple in "$@"; do
     condition=$(echo "$tuple" | cut -d: -f1)
@@ -119,7 +107,6 @@ notify() {
 
 notifyOk() {
   notify_disabled='[ "$NOTIFY" = "no" ]'
-  action_involves_saving='[ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]'
 
   if eval $notify_disabled; then
     return
@@ -128,20 +115,23 @@ notifyOk() {
   TITLE=${2:-"Screenshot"}
   MESSAGE=${1:-"OK"}
 
-  whenOtherwise "$action_involves_saving" \
-    'notify "$TITLE" "$MESSAGE" -i "$FILE"' \
-    'notify "$TITLE" "$MESSAGE"'
+  if [ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]; then
+    notify "$TITLE" "$MESSAGE" -i "$FILE"
+  else
+    notify "$TITLE" "$MESSAGE"
+  fi
 }
 
 notifyError() {
-  notify_enabled='[ "$NOTIFY" = "yes" ]'
   TITLE=${2:-"Screenshot"}
   errorMssg=$1
   MESSAGE=${errorMssg:-"Error taking screenshot with grim"}
 
-  whenOtherwise "$notify_enabled" \
-    'notify "$TITLE" "$MESSAGE" -u critical' \
-    'echo "$errorMssg"'
+  if [ "$NOTIFY" = "yes" ]; then
+    notify "$TITLE" "$MESSAGE" -u critical
+  else
+    echo "$errorMssg"
+  fi
 }
 
 die() {
@@ -152,11 +142,12 @@ die() {
 
 check() {
   COMMAND=$1
-  command_exists='command -v "$COMMAND" > /dev/null 2>&1'
 
-  whenOtherwise "$command_exists" \
-    'RESULT="OK"' \
-    'RESULT="NOT FOUND"'
+  if command -v "$COMMAND" > /dev/null 2>&1; then
+    RESULT="OK"
+  else
+    RESULT="NOT FOUND"
+  fi
 
   echo "   $COMMAND: $RESULT"
 }
@@ -247,10 +238,11 @@ handleCopy() {
 }
 
 handleSave() {
-  screenshotTaken="takeScreenshot \"$FILE\" \"$GEOM\" \"$OUTPUT\""
-  whenOtherwise "$screenshotTaken" \
-    "handleScreenshotSuccess" \
-    "handleScreenshotFailure"
+  if takeScreenshot "$FILE" "$GEOM" "$OUTPUT"; then
+    handleScreenshotSuccess
+  else
+    handleScreenshotFailure
+  fi
 }
 handleUnknownSubject() {
   die "Unknown subject to take a screenshot from" "$SUBJECT"
@@ -278,11 +270,11 @@ handleScreenshot() {
 
   [ "$WAIT" != "no" ] && sleep "$WAIT"
 
-  actionIsCopy='[ "$ACTION" = "copy" ]'
-
-  whenOtherwise "$actionIsCopy" \
-    "handleCopy" \
-    "handleSave"
+  if [ "$ACTION" = "copy" ]; then
+    handleCopy
+  else
+    handleSave
+  fi
 }
 
 parseArgs "$@"
