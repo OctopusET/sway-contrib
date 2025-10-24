@@ -18,18 +18,6 @@ echo() {
   printf '%b\n' "$*"
 }
 
-any() {
-  for tuple in "$@"; do
-    condition=$(echo "$tuple" | cut -d: -f1)
-    action=$(echo "$tuple" | cut -d: -f2-)
-    if eval "$condition"; then
-      eval "$action"
-      return 0
-    fi
-  done
-  return 1  # No conditions matched
-}
-
 NOTIFY=no
 CURSOR=
 WAIT=no
@@ -157,17 +145,13 @@ takeScreenshot() {
   GEOM=$2
   OUTPUT=$3
 
-  output_provided='[ -n "$OUTPUT" ]'
-  geom_not_provided='[ -z "$GEOM" ]'
-
-  output_action='grim ${CURSOR:+-c} -o "$OUTPUT" "$FILE" || die "Unable to invoke grim"'
-  full_screenshot_action='grim ${CURSOR:+-c} "$FILE" || die "Unable to invoke grim"'
-  geometry_screenshot_action='grim ${CURSOR:+-c} -g "$GEOM" "$FILE" || die "Unable to invoke grim"'
-
-  any \
-    "$output_provided:$output_action" \
-    "$geom_not_provided:$full_screenshot_action" \
-    "true:$geometry_screenshot_action"
+  if [ -n "$OUTPUT" ]; then
+    grim ${CURSOR:+-c} -o "$OUTPUT" "$FILE" || die "Unable to invoke grim"
+  elif [ -z "$GEOM" ]; then
+    grim ${CURSOR:+-c} "$FILE" || die "Unable to invoke grim"
+  else
+    grim ${CURSOR:+-c} -g "$GEOM" "$FILE" || die "Unable to invoke grim"
+  fi
 }
 checkRequiredTools() {
   echo "Checking if required tools are installed. If something is missing, install it to your system and make it available in PATH..."
@@ -248,25 +232,30 @@ handleUnknownSubject() {
   die "Unknown subject to take a screenshot from" "$SUBJECT"
 }
 handleScreenshot() {
-  actionIsInvalid='[ "$ACTION" != "save" ] && [ "$ACTION" != "copy" ] && [ "$ACTION" != "savecopy" ] && [ "$ACTION" != "check" ]'
-  actionIsCheck='[ "$ACTION" = "check" ]'
-  subjectIsArea='[ "$SUBJECT" = "area" ]'
-  subjectIsActiveWindow='[ "$SUBJECT" = "active" ]'
-  subjectIsScreen='[ "$SUBJECT" = "screen" ]'
-  subjectIsOutput='[ "$SUBJECT" = "output" ]'
-  subjectIsWindow='[ "$SUBJECT" = "window" ]'
-  subjectIsAnything='[ "$SUBJECT" = "anything" ]'
-  subjectIsUnknown=true
-  any \
-    "$actionIsInvalid:printUsageMsg" \
-    "$actionIsCheck:checkRequiredTools" \
-    "$subjectIsArea:selectArea" \
-    "$subjectIsActiveWindow:selectActiveWindow" \
-    "$subjectIsScreen:selectScreen" \
-    "$subjectIsOutput:selectOutput" \
-    "$subjectIsWindow:selectWindow" \
-    "$subjectIsAnything:selectAnything" \
-    "$subjectIsUnknown:handleUnknownSubject"
+  case "$ACTION" in
+    check)
+      checkRequiredTools ;;
+    save | copy | savecopy | check) : ;; # nothing
+    *)
+      printUsageMsg ;;
+  esac
+
+  case "$SUBJECT" in
+    area)
+      selectArea ;;
+    active)
+      selectActiveWindow ;;
+    screen)
+      selectScreen ;;
+    output)
+      selectOutput ;;
+    window)
+      selectWindow ;;
+    anything)
+      selectAnything ;;
+    *)
+      handleUnknownSubject ;;
+  esac
 
   [ "$WAIT" != "no" ] && sleep "$WAIT"
 
