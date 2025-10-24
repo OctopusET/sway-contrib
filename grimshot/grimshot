@@ -18,15 +18,6 @@ echo() {
   printf '%b\n' "$*"
 }
 
-when() {
-  condition=$1
-  action=$2
-
-  if eval "$condition"; then
-    eval "$action"
-  fi
-}
-
 whenOtherwise() {
   condition=$1
   true_action=$2
@@ -200,8 +191,7 @@ checkRequiredTools() {
 
 selectArea() {
   GEOM=$(slurp -d)
-  geomIsEmpty='[ -z "$GEOM" ]'
-  when "$geomIsEmpty" "exit 1"
+  [ -z "$GEOM" ] && exit 1
   WHAT="Area"
 }
 
@@ -225,15 +215,13 @@ selectOutput() {
 
 selectWindow() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -r)
-  geomIsEmpty='[ -z "$GEOM" ]'
-  when "$geomIsEmpty" "exit 1"
+  [ -z "$GEOM" ] && exit 1
   WHAT="Window"
 }
 
 selectAnything() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -o)
-  geomIsEmpty='[ -z "$GEOM" ]'
-  when "$geomIsEmpty" "exit 1"
+  [ -z "$GEOM" ] && exit 1
   WHAT="Selection"
 }
 handleSaveCopy() {
@@ -244,8 +232,7 @@ handleSaveCopy() {
 handleScreenshotSuccess() {
   TITLE="Screenshot of $SUBJECT"
   MESSAGE=$(basename "$FILE")
-  isSaveCopy='[ "$ACTION" = "savecopy" ]'
-  when "$isSaveCopy" "handleSaveCopy"
+  [ "$ACTION" = "savecopy" ] && handleSaveCopy
   notifyOk "$MESSAGE" "$TITLE"
   echo "$FILE"
 }
@@ -289,8 +276,7 @@ handleScreenshot() {
     "$subjectIsAnything:selectAnything" \
     "$subjectIsUnknown:handleUnknownSubject"
 
-  wait='[ "$WAIT" != "no" ]'
-  when "$wait" "sleep $WAIT"
+  [ "$WAIT" != "no" ] && sleep "$WAIT"
 
   actionIsCopy='[ "$ACTION" = "copy" ]'
 
