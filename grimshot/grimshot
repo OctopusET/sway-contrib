@@ -50,8 +50,10 @@ CURSOR=
 WAIT=no
 
 getTargetDirectory() {
-  test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
-    . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+  if [ -z "${XDG_SCREENSHOTS_DIR+set}${XDG_PICTURES_DIR+set}" ]; then
+    test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
+      . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+  fi
 
   echo "${XDG_SCREENSHOTS_DIR:-${XDG_PICTURES_DIR:-$HOME}}"
 }
