@@ -77,7 +77,7 @@ parseArgs() {
     -w | --wait)
       WAIT="$1"
       shift
-      if echo "$WAIT" | grep "[^0-9]" -q; then
+      if echo "$WAIT" | grep -q "[^0-9]"; then
         echo "invalid value for wait '$WAIT'" >&2
         exit 3
       fi
