@@ -12,6 +12,12 @@
 ##
 ## See `man 1 grimshot` or `grimshot usage` for further details.
 
+# Override standard echo to avoid confusing errors if, for example, a user
+# provides options like "-w -n" to the program.
+echo() {
+  printf '%b\n' "$*"
+}
+
 when() {
   condition=$1
   action=$2
