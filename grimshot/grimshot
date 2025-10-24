@@ -65,35 +65,29 @@ getTargetDirectory() {
 }
 
 parseArgs() {
-  POSITIONAL_ARGS=""
-
-  while [ $# -gt 0 ]; do
-    case "$1" in
+  for arg; do
+    shift
+    case "$arg" in
     -n | --notify)
       NOTIFY=yes
-      shift
       ;;
     -c | --cursor)
       CURSOR=yes
-      shift
       ;;
     -w | --wait)
-      shift
       WAIT="$1"
+      shift
       if echo "$WAIT" | grep "[^0-9]" -q; then
         echo "invalid value for wait '$WAIT'" >&2
         exit 3
       fi
-      shift
       ;;
-    *)                                      # Treat anything else as a positional argument
-      POSITIONAL_ARGS="$POSITIONAL_ARGS $1" # Add positional argument to the string
-      shift
+    *)                   # Treat anything else as a positional argument
+      set -- "$@" "$arg" # Re-append to arguments.
       ;;
     esac
   done
 
-  set -- $POSITIONAL_ARGS # Re-assign positional arguments
   ACTION=${1:-usage}
   SUBJECT=${2:-screen}
   if [ -n "$GRIMSHOT_FILENAME_FORMAT" ]; then
