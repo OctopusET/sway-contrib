@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # insertion sort
     for i in range(1, len(leaves)):
         # focus leaf i
-        commands.append(f"[con_id="{leaves[i].id}"] focus")
+        commands.append(f'[con_id="{leaves[i].id}"] focus')
 
         # insert leaf i into sorted section
         for j in reversed(range(0, i)):
@@ -61,7 +61,7 @@ if __name__ == "__main__":
             leaves[j+1], leaves[j] = leaves[j], leaves[j+1]
             commands.append(move_prev)
 
-    commands.append(f"[con_id="{leaves[0].id}"] focus")
+    commands.append(f'[con_id="{leaves[0].id}"] focus')
 
     for cmd in commands:
         ipc.command(cmd)
