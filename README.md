@@ -16,6 +16,7 @@
 | layout-per-window.py | A script keeps track of the active layout for each window |
 | switch-top-level.py | A script allows you to define two new bindings |
 | swaystack.py | A script for hoarding workspaces in stacks |
+| sort-container.py | A script to sort the focused container |
 
 
 ## Contributing
