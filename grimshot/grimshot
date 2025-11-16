@@ -100,7 +100,16 @@ printUsageMsg() {
 }
 
 notify() {
-  notify-send -t 3000 -a grimshot "$@"
+  if [ "$ACTION" = "copy" ]; then
+    notify-send -t 3000 -a grimshot "$@"
+  else
+    action=$(notify-send -t 3000 -a grimshot --action=file='Open File' --action=dir='Open Directory' "$@")
+    if [ "$action" = "file" ]; then
+      xdg-open "$FILE"
+    elif [ "$action" = "dir" ]; then
+      xdg-open "$(dirname "$FILE")"
+    fi
+  fi
 }
 
 notifyOk() {
@@ -171,6 +180,7 @@ checkRequiredTools() {
   check wl-copy
   check jq
   check notify-send
+  check xdg-open
   exit
 }
 
