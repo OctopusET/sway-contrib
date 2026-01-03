@@ -1,0 +1,1 @@
+/home/scott/Downloads/git/sway-contrib/float-window-manager/float-window-managerd.sh

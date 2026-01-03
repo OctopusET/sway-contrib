@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 
 # $HOME/.local/bin/float-window-managerd.sh
+# This version, called -new, utilizes an auxilliary script: fwmd-move_window.sh
+
+# (11/2025) New version (at least to try...)
+# Since Sway does not allow floating-point percentages in its move window command, I will try to get around that by
+# using Sway's ability to mark a window uniquely within a for_window command.
+# Instead of immediately moving the window with percentages, we will mark the window, and then call a script that will
+# move it with pixel positioning by using the desired floating-point percentages against the currently-focussed output's
+# dimensions and position.
+# The script will take as parameters the mark and the x and y percentages.
+# The mark needs to be unique, and it could be that several for_window s would be called closely enough together to cause a race
+# situation, so I will use the date command with whatever option causes a single date/time (or just time) to be output.
+# The script will call swaymsg -t get_tree 
+
+# I have just (10/2025) found that FWM does not work on a second output.  The rect.x and .y values are apparently GLOBAL.
+# To get the output-relative rect.x and .y values, we must subtract the output's rect.x/.y values from the window's rect.x/.y values.
+# There are tests for x and y being less than output width (to make sure window is onscreen).  This will not work without alteration,
+# as the values of x/y are global. We'll have to get output-relative x/y values to compare here (and we would need them anyway,
+# for use in calculating the percentages.)
+# We don't need to use the relative x/y until we are trying to figure out if a closing window is off the screen, and to calculate
+# the closing window's position percentage. However, a closing window event means we cannot get the window to find out the output
+# and its position, as the window is gone. Therefore, we must make new arrays for the output x/y, so that we can reference them at close.
 
 # This version will attempt to also handle windows that were tiling, but are now floating.
 # The type of window event is: "change": "floating"
@@ -40,16 +61,33 @@ else
 	echo All commands were found.
 fi
 
-
+# This new version-compare authored by: https://github.com/sakarie9
+#min_version="1.6"		# first Sway with 'move <xx> ppt' ("percentage points").
+ min_version="0.13.0"	# first Sway with window marks.
 version=$(swaymsg -t get_version | jq -r '.human_readable')
-if [[ "$version" < "1.6" ]]; then
-	echo This version of Sway is earlier than supports moving windows with percentages.
-	echo Version is \'"$version"\'. Version needed: \'1.6\'.
+# sort can sort by version -V;  head -n NUM --> print the first NUM lines to standard output
+if [ "$(echo -e "$version\n$min_version" | sort -V | head -n 1)" != "$min_version" ]; then
+#   True if $version is less than $min_version
+#	echo This version of Sway is earlier than supports moving windows with percentages.
+	echo This version of Sway is earlier than supports \'mark\'-ing windows.
+	echo Version is \'"$version"\'. Version needed: \'"$min_version"\'.
+	notify-send "Sway version is too old for float-window-manager."
+	notify-send "Version is '"$version"'. Version needed: '"$min_version"'."
 	exit 1
 fi
 
+move_window_script_path="$HOME/.local/bin"
+if [[ ! -f "$move_window_script_path/fwmd-move_window.sh" ]]; then
+	echo "float-window-manager: move window script:"
+	echo \'"$move_window_script_path/fwmd-move_window.sh"\' not found.
+	notify-send "float-window-manager: move window script:"
+	notify-send "'"$move_window_script_path/fwmd-move_window.sh"' not found."
+fi
+
+
 
 winpath="$HOME/.config/sway/float_window_store/"
+
 [ -d "$winpath" ] || mkdir -p -v "$winpath"	# " -p no error if existing, make parent directories as needed"
 
 # https://stackoverflow.com/questions/15783701/which-characters-need-to-be-escaped-when-using-bash
@@ -58,6 +96,8 @@ singlequote=\'
 # I noticed that the GIMP main window ends with '– GIMP', where the dash is not '-'. but '–', so I have added it to "special", in case it's a problem for regexp
 special=$'`!@#$%^&*()-–_+={}|[]\\;\:,.<>?/ '$doublequote$singlequote		# featherpad's syntax highlighting seems to get messed up with these actual quotes in the special string...
 backslash=$'\\'
+caret=$'^'
+dollar=$'$'
 
 escape_bad_chars_in_winname() {
 	local winname="$1"
@@ -82,6 +122,8 @@ unset_arrays() {
 	unset was_tiling["$con_id"]
 	unset outputwidth["$con_id"]
 	unset outputheight["$con_id"]
+	unset outputx["$con_id"]
+	unset outputy["$con_id"]
 	unset orig_win_x["$con_id"]
 	unset orig_win_y["$con_id"]
 	unset ws_x["$con_id"]
@@ -91,7 +133,12 @@ unset_arrays() {
 	echo Arrays unset...
 }
 
-# Make a Sway for_window  rule for each file in $winpath, using the filename as title, and the contents as x and y percentages
+old_percent_regex="^[+-]?[0-9]{1,2}$"					# integer -> +/- plus 1 or 2 digits 0-9
+		 percent_regex="^[0-9]{1,2}(\.{1}[0-9]+)?$"		# float   -> above, plus 0 or 1 ("?") "single dot + 1 or more ("+") digits"
+# (Why were we accepting negative percentages here, when we were disallowing them below...?)
+
+
+# Make a Sway for_window rule for each file in $winpath, using the filename as title, and the contents as x and y percentages
 for file in $winpath/*; do
 	filename=$(basename "$file")
 	winname="$filename"
@@ -102,36 +149,51 @@ for file in $winpath/*; do
 		echo file \'"$file"\' could not be read...
 		continue
 	fi
+	
 	echo winname= \'"$winname"\'        xperc= \'"$xperc"\'  yperc= \'"$yperc"\'
+	
 	if [[ ("$xperc" == "") && ("$yperc" == "") ]]; then		# "ignore me"
-		echo winname= \'"$winname"\' --\> \"Ignore Me\"
+		echo "   --\> \"Ignore Me\""
 		continue
 	fi
-	if [[ ( ("$xperc" != "") && ("$yperc" != "") ) &&
-			( ! ("$xperc" =~ ^[+-]?[0-9]{1,2}$) && ("$yperc" =~ ^[+-]?[0-9]{1,2}$) )  ]]; then	# sign (or not) plus 1-2 digits
-		echo Window \'"$winname"\' has invalid percentage[s]. Ignoring.
+	if [[ ("$xperc" == "") || ("$yperc" == "") ]]; then		# missing a percent
+		echo "   --\> has a missing percentage. Ignoring."
 		continue
 	fi
-	if [[ ( "$xperc" -lt 0 ) || ( "$xperc" -gt 100 ) || ( "$yperc" -lt 0 ) || ( "$yperc" -gt 100 ) ]]; then 
+	if [[ ( ! ("$xperc" =~ $percent_regex) || ! ("$yperc" =~ $percent_regex) )  ]]; then
+		echo "   --\> has invalid percentage[s]. Ignoring."
+		continue
+	fi
+	if (( $(echo "$xperc < 0" |bc -l) || $(echo "$xperc > 100" |bc -l) || 
+		  $(echo "$yperc < 0" |bc -l) || $(echo "$yperc > 100" |bc -l) )); then 
 		echo Window \'"$winname"\' has percentage[s] outside 0-100. Ignoring.
 		continue
 	fi
+	echo "   --\> percentages OK."
 
 	winname="$(escape_bad_chars_in_winname "$winname")"
-
-	swaymsg_output=$(swaymsg -- for_window \[title="$doublequote$winname$doublequote"\] "move position "$xperc" ppt "$yperc" ppt")
+	fw_winname="$caret""$winname""$dollar"	# make sure title begins and ends with winname, not just contains it
+	
+	datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
+	mark="fmwd_""$datestr"
+	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_winname$doublequote\] mark "$mark")
 	result=$?
-#	"swaymsg_output" is always non-blank, as a jq result with {  "success": true  } is printed if we are successful.
 	if [[ ! "$result" == 0 ]]; then
-		echo Window \'"$winname"\':  for_window fails with message: \'"$swaymsg_output"\'
+		echo Window \'"$winname"\':  for_window mark $mark fails with message: \'"$swaymsg_output"\'
+	fi
+#	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$winname$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc")
+	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_winname$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log 2>&1")
+	result=$?
+	if [[ ! "$result" == 0 ]]; then
+		echo Window \'"$winname"\':  for_window exec move_window_script fails with message: \'"$swaymsg_output"\'
 	fi
 done
 
 
 
 
-declare -i  con_id  opw  oph
-declare -a  PIDarray  we_array  outputwidth  outputheight orig_win_x  orig_win_y  ignore_me
+declare -i  con_id  opw  oph  opx  opy  rel_x  rel_y  event_win_x  event_win_y  opw_m_wsx  oph_m_wsy_m_wdh  scale
+declare -a  PIDarray  we_array  outputwidth  outputheight  outputx  outputy  orig_win_x  orig_win_y  ignore_me
 declare -a  already_processed  was_tiling  ws_x  ws_y  win_deco_height
 
 we_file='/tmp/sway_win_events.txt'
@@ -150,8 +212,7 @@ echo BASHPID= \'"$BASHPID"\'
 BASH_SID=$(ps -p "$BASHPID" -o sid=)
 echo BASH_SID= \'"$BASH_SID"\'
 
-#PS=$(pgrep -f -d ' ' "float-window-placement[0-9]*d.sh")  #instead of \n, -d elimit with a space.
- PS=$(pgrep -f -d ' ' "float-window-managerd.sh")  #instead of \n, -d elimit with a space.
+PS=$(pgrep -f -d ' ' "float-window-managerd.sh")  #instead of \n, -d elimit with a space.
 #	-f "match against the ...full command line, not just the process name."
 echo PS= \'"$PS"\'
 IFS=" " read -r -a PIDarray <<< "$PS"
@@ -176,6 +237,11 @@ echo
 echo
 notify-send "...starting Float Window Manager..."
 
+scale=4
+echo scale=\'"$scale"\'
+zeros="000000000"
+round='.'${zeros:0:$scale}"5"
+echo round=\'"$round"\'
 
 # We will constantly monitor (-m) we_file, and when it changes, write stuff (we don't care what) to inw_file
 # Later, instead of constantly looping to see if we_file has had more lines added to it (and thus use 20-25% CPU),
@@ -196,7 +262,7 @@ while true; do
 		IFS=$'\n' read -d '\n' -a we_array < <(tail -n +"$i" "$we_file" )  # read from line $i to [current] EOF
 		num_events="${#we_array[@]}"
 		if [[ "$num_events" == 0 ]]; then
-			break;  # while true - inner loop - go back to waiting in outer 'while true' loop
+ 			break;  # while true - inner loop - go back to waiting in outer 'while true' loop
 		fi
 		echo
 		echo i=$i read $num_events events
@@ -204,30 +270,31 @@ while true; do
 		
 		for we in "${we_array[@]}"; do 
 			echo '=================================================================================='
-			echo \'"$we"\'
-			echo
-			
-			# $con.name is sometimes null, and messes up the read; we change null to bogus name here, and will deal with it later...
-			IFS=$'\t' read -r event_type  con_id  event_win_name  event_win_type  event_win_x  event_win_y  \
-						  < <(echo "$we"  | jq -r '. as $root | 
-											$root.container as $con | [$root.change, $con.id, $con.name // "NuLlnUlLNuLlnUlL",
-											$con.type, $con.rect.x, $con.rect.y]  | @tsv ')
+    		echo \'"$we"\'
+    		echo
+    		
 
+   			IFS=$'\t' read -r event_type  con_id  event_win_type  event_win_x  event_win_y  event_win_name  \
+   						  < <(echo "$we"  | jq -r '. as $root | 
+  											$root.container as $con | [$root.change, $con.id,
+  											$con.type, $con.rect.x, $con.rect.y, $con.name // "NuLlnUlLNuLlnUlL"]  | @tsv ')
+			echo \'"$event_win_name"\'
 			event_win_name=${event_win_name//NuLlnUlLNuLlnUlL/}
+			echo \'"$event_win_name"\'
 
 			if [[ "$event_type" == "floating" ]]; then
 				if [[ "$event_win_type" == "floating_con" ]]; then
 					event_type="to_floating"
-					echo event_type "floating" ---> "to_floating"
+					echo event_type "floating--->to_floating"
 				else 
 					event_type="to_tiling"
-					echo event_type "floating" ---> "to_tiling"
+					echo event_type "floating--->to_tiling"
 				fi
 			else
 				# handle a closed originally-tiling window as if it reverted to tiling
 				if [[ ("$event_type" == "close") && ("${was_tiling["$con_id"]}" == "yes") ]]; then
 					event_type="to_tiling"
-					echo event_type "close" ---> "to_tiling"
+					echo event_type "close--->to_tiling"
 				fi
 			fi
 
@@ -237,7 +304,7 @@ while true; do
 
 			case "$event_type" in
 			
-				*"new"* | *"to_floating"*)
+		 	 	*"new"* | *"to_floating"*)
 
 					if [[ "$event_type" == "new" ]]; then
 						sleep 1   # delay long enough for name to get into win_name, and win_type to be set to "floating_con" (or not) 
@@ -250,19 +317,22 @@ while true; do
 					fi
 					
 					# $win.name is sometimes null, and messes up the read; we change null to bogus name here, and will deal with it later...
-					IFS=$'\t' read -r  win_name  win_type  win_x  win_y  win_deco_height  ws_name  ws_x  ws_y  output_width  output_height < <(swaymsg -t get_tree |  \
+    		    	IFS=$'\t' read -r   win_type  win_x  win_y  win_deco_height  ws_name  ws_x  ws_y  \
+    		    						output_width  output_height  output_x  output_y  win_name  < <(swaymsg -t get_tree |  \
 						jq -r --arg CONID "$con_id" '. as $root | $root.nodes[] as $output | $output.nodes[] as $ws |
-						$ws.floating_nodes[] as $win | select ( $win.id == ($CONID | tonumber) ) | 
-						[$win.name // "NuLlnUlLNuLlnUlL", $win.type, $win.rect.x, $win.rect.y, $win.deco_rect.height, $ws.name,
-						 $ws.rect.x, $ws.rect.y, $output.rect.width, $output.rect.height] | @tsv')
-					result=$?
-					if [[ "$result" != 0 ]]; then
-						echo result=\'"$result"\'  ...apparently window matching con_id=\'"$con_id"\' is not floating  -  aborting this event...
-						unset_arrays
-						continue  # for we in "${we_array[@]}"
-					fi
-					win_name=${win_name//NuLlnUlLNuLlnUlL/}		# change bogus "name" back into empty string
-					echo \'$event_type\'   \'$con_id\'   \'$win_name\'
+				 		$ws.floating_nodes[] as $win | select ( $win.id == ($CONID | tonumber) ) | 
+				  		[$win.type, $win.rect.x, $win.rect.y, $win.deco_rect.height, $ws.name, $ws.rect.x, $ws.rect.y,
+				  		  $output.rect.width, $output.rect.height, $output.rect.x, $output.rect.y, $win.name // "NuLlnUlLNuLlnUlL"] | @tsv')
+				  	result=$?
+				  	if [[ "$result" != 0 ]]; then
+					  	echo result=\'"$result"\'  ...apparently window matching con_id=\'"$con_id"\' is not floating  -  aborting this event...
+					  	unset_arrays
+					  	continue  # for we in "${we_array[@]}"
+				  	fi
+					echo \'"$win_name"\'
+				  	win_name=${win_name//NuLlnUlLNuLlnUlL/}		# change bogus "name" back into empty string
+					echo \'"$win_name"\'
+				    echo \'$event_type\'   \'$con_id\'   \'$win_name\'
 					echo \'"$win_name"\' type=\'"$win_type"\'  x:y $win_x : $win_y  win_deco_height=$win_deco_height  ws:$ws_name x:$ws_x y:$ws_y $output_width x $output_height
 
 					already_processed["$con_id"]="yes"	# this will never be "no" - we just test for set/unset ...
@@ -273,6 +343,8 @@ while true; do
 					fi
 					outputwidth["$con_id"]="$output_width"
 					outputheight["$con_id"]="$output_height"
+					outputx["$con_id"]="$output_x"
+					outputy["$con_id"]="$output_y"
 					orig_win_x["$con_id"]="$win_x"
 					orig_win_y["$con_id"]="$win_y"
 					ws_x["$con_id"]="$ws_x"
@@ -297,24 +369,35 @@ while true; do
 							echo  '--->' \"Ignore me\"
 						else
 							if [[ ( ("$xperc" != "") && ("$yperc" != "") ) &&
-									( ("$xperc" =~ ^[+-]?[0-9]{1,2}$) && ("$yperc" =~ ^[+-]?[0-9]{1,2}$) )  ]]; then	# sign (or not) plus 1-2 digits
-								if [[ ( "$xperc" -ge 0 ) || ( "$xperc" -le 100 ) || ( "$yperc" -ge 0 ) || ( "$yperc" -le 100 ) ]]; then 
+									( ("$xperc" =~ $percent_regex) && ("$yperc" =~ $percent_regex) )  ]]; then
+								if (( $(echo "$xperc >= 0" |bc -l) && $(echo "$xperc <= 100" |bc -l) && 
+									  $(echo "$yperc >= 0" |bc -l) && $(echo "$yperc <= 100" |bc -l) )); then 
 									echo  '---> percentages present and valid.'
+									
 									if [[ "$event_type" == "to_floating" ]]; then	# we have to move the window ourselves.
-										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] "move position "$xperc" ppt "$yperc" ppt")
+										datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
+										mark="fmwd_""$datestr"
+										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] mark "$mark")
 										result=$?
-#			"swaymsg_output" is always non-blank, as a jq result with {  "success": true  } is printed if we are successful.
 										if [[ "$result" != 0 ]]; then
-											echo Window \'"$wn"\':  \"move position\" fails with message: \'"$swaymsg_output"\'
+											echo Window \'"$wn"\':  \"mark "$mark"\" fails with message: \'"$swaymsg_output"\'
 											unset_arrays
 											continue  # for we in "${we_array[@]}"
 										fi
+										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc  >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${wn}_$mark.log 2>&1")
+										result=$?
+										if [[ "$result" != 0 ]]; then
+											echo Window \'"$wn"\':  \"move position\" fails with \'"$result"\' and message: \'"$swaymsg_output"\'
+											unset_arrays
+											continue  # for we in "${we_array[@]}"
+										fi
+
 # Now, we'll have to get the window from swaymsg, as the position changed, and we will need to know later for "close"/"to_tiling
 # if its position later changed from the saved position.
-										IFS=$'\t' read -r  win_x  win_y < <(swaymsg -t get_tree |  \
+					    				IFS=$'\t' read -r  win_x  win_y < <(swaymsg -t get_tree |  \
 											jq -r --arg CONID "$con_id" '. as $root | $root.nodes[] as $output | $output.nodes[] as $ws |
 											$ws.floating_nodes[] as $win | select ( $win.id == ($CONID | tonumber) ) | 
-											[$win.rect.x, $win.rect.y] | @tsv')
+					  						[$win.rect.x, $win.rect.y] | @tsv')
 										result=$?
 										if [[ "$result" != 0 ]]; then
 											echo result=\'"$result"\'  ...apparently window matching con_id=\'"$con_id"\' is not floating  -  aborting this event...
@@ -348,40 +431,57 @@ while true; do
 					echo \'"$event_type"\'   \'"$con_id"\'   \'"$event_win_name"\'
 					
 					if [[ ("$event_type" == "close") && ("$event_win_type" != "floating_con") ]]; then
-						echo 'Not a floating-con...'
+						echo Not a floating_con... aborting...
 						continue   # for we in "${we_array[@]}"
 					fi
+
+					if [[ ! -v  already_processed["$con_id"]  ]]; then
+						echo Somehow this \'close\' never had an \'open\'...aborting...
+						continue   # for we in "${we_array[@]}"
+					fi
+
 					
 					opw=${outputwidth["$con_id"]}
 					oph=${outputheight["$con_id"]}
-					
+					opx=${outputx["$con_id"]}
+					opy=${outputy["$con_id"]}
+
 					echo \(i.m.: ${ignore_me["$con_id"]}\)  \(x: new:$event_win_x : old:${orig_win_x["$con_id"]}\)  \(y: new:$event_win_y : old:${orig_win_y["$con_id"]}\)
 					echo outputwidth of "$con_id" is: $opw     outputheight of "$con_id" is: $oph
-					if [[ ($event_win_x -ge 0 ) ]]; then echo event-win-x IS GE 0; else echo event-win-x IS NOT GE 0; fi
-					if [[ ($event_win_y -ge 0 ) ]]; then echo event-win-y IS GE 0; else echo event-win-y IS NOT GE 0; fi
-					if [[ ($event_win_x -lt $opw) ]]; then echo event-win-x IS LT outputwidth;  else echo event-win-x IS NOT LT outputwidth; fi
-					if [[ ($event_win_y -lt $oph) ]]; then echo event-win-y IS LT outputheight; else echo event-win-y IS NOT LT outputheight; fi
+					echo outputx of "$con_id" is: $opx
+					echo outputy of "$con_id" is: $opy
+					echo ws_x of "$con_id" is: ${ws_x["$con_id"]}
+					echo ws_y of "$con_id" is: ${ws_y["$con_id"]}
+					echo win_deco_height is: ${win_deco_height["$con_id"]}
+# we here get the window x/y positions relative to the output's x/y
+					rel_x=$(("$event_win_x"-"$opx"))
+					rel_y=$(("$event_win_y"-"$opy"))
+					echo rel_x= \'"$rel_x"\'       rel_y= \'"$rel_y"\'
+					if [[ ($rel_x -ge 0 ) ]]; then echo rel_x IS GE 0; else echo rel_x IS NOT GE 0; fi
+					if [[ ($rel_y -ge 0 ) ]]; then echo rel_y IS GE 0; else echo rel_y IS NOT GE 0; fi
+					if [[ ($rel_x -lt $opw) ]]; then echo rel_x IS LT outputwidth;  else echo rel_x IS NOT LT outputwidth; fi
+					if [[ ($rel_y -lt $oph) ]]; then echo rel_y IS LT outputheight; else echo rel_y IS NOT LT outputheight; fi
 
 
 					if [[ (${ignore_me["$con_id"]} == "no") &&
 							(($event_win_x != ${orig_win_x["$con_id"]}) || ($event_win_y != ${orig_win_y["$con_id"]})) &&
-							(($event_win_x -ge 0 )   && ($event_win_y -ge 0 )) &&
-							(($event_win_x -lt $opw) && ($event_win_y -lt $oph)) ]]; then
+							(($rel_x -ge 0 )   && ($rel_y -ge 0 )) &&
+							(($rel_x -lt $opw) && ($rel_y -lt $oph)) ]]; then
 
-#NOTE: We now store percentage as 0-100 so we multiply by 100, and round to the nearest pixel by adding .5 and truncating ("scale=0")
-# We have to do scale=4, and then take the result and do scale=0 to truncate, as bc won't do it all in one, for some reason... 
-# (and won't do scale=0 if no division in calc, so " / 1")
+# We WERE offsetting by ws_x/ws_y and win_deco_height, Currently, only ws_y and win-deco-height seem not to be non-zero, but ...
+# Actually, ws_x seems on other outputs to be non-zero, and equal to the opx, so , so we do NOT want to offset by ws_x...
+# I STILL do not know why ws_y seems to be universally "38", as my bar height is set to "20" ("14" on laptop)
 
-# sway does not use the whole output width/height when it performs its percentage window placement, but offsets by the workspace x/y 
-# and deco-rect height.  Currently, only ws_y and win-deco-height seem not to be non-zero, but ...
+						xperc=$(echo "$rel_x / $opw * 100" | bc -l)
+						xperc=$(echo "scale=$scale; ($xperc + $round) / 1" | bc -l)
 
-						opw_m_wsx=$(echo "$opw-${ws_x["$con_id"]}" | bc -l)
-						xperc=$(echo "scale=4; $event_win_x / $opw_m_wsx * 100 + .5" | bc -l)
-						xperc=$(echo "scale=0; $xperc / 1" | bc -l)
+# With my new percentage system, the window's position at close equals its position when next open, EXCEPT for border="normal"
+# windows, whose x position is as saved, but y position is too low by 27, which is win_deco_height.  So BEFORE calculating percentages,
+# we will subtract win_deco_height from the ypos.  win_deco_height is zero, except for "normal" windows, so we can do it for all windows.
+						rel_y=$(("$rel_y"-"${win_deco_height["$con_id"]}"))
+						yperc=$(echo "$rel_y / $oph * 100" | bc -l)
+						yperc=$(echo "scale=$scale; ($yperc + $round) / 1" | bc -l)
 
-						oph_m_wsy_m_wdh=$(echo "($oph-${ws_y["$con_id"]})-${win_deco_height["$con_id"]}" | bc -l)
-						yperc=$(echo "scale=4; $event_win_y / $oph_m_wsy_m_wdh * 100 + .5" | bc -l)
-						yperc=$(echo "scale=0; $yperc / 1" | bc -l)
 						echo xperc: $xperc,  yperc: $yperc
 						file="$winpath""$event_win_name"
 						echo  $xperc  $yperc > "$file"
@@ -397,12 +497,19 @@ while true; do
 								echo wn before: \'"$event_win_name"\'        xperc= \'"$xperc"\'  yperc= \'"$yperc"\'
 								event_win_name="$(escape_bad_chars_in_winname "$event_win_name")"
 								echo wn after:  \'"$event_win_name"\'
+								fw_event_win_name="$caret""$event_win_name""$dollar"	# make sure title begins and ends with winname, not just contains it
 
-								swaymsg_output=$(swaymsg -- for_window \[title="$doublequote$event_win_name$doublequote"\] "move position "$xperc" ppt "$yperc" ppt")
+								datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
+								mark="fmwd_""$datestr"
+								swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_event_win_name$doublequote\] mark "$mark")
 								result=$?
-#		"swaymsg_output" is always non-blank, as a jq result with {  "success": true  } is printed if we are successful.
 								if [[ "$result" != 0 ]]; then
-									echo Window \'"$event_win_name"\':  for_window fails with message: \'"$swaymsg_output"\'
+									echo Window \'"$event_win_name"\':  for_window mark "$mark" fails with message: \'"$swaymsg_output"\'
+								fi
+								swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_event_win_name$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc  >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log 2>&1")
+								result=$?
+								if [[ "$result" != 0 ]]; then
+									echo Window \'"$event_win_name"\':  for_window exec move_window_script fails with message: \'"$swaymsg_output"\'
 								fi
 							else
 								echo originally-tiled window \"$event_win_name\" - position saved.
@@ -418,9 +525,9 @@ while true; do
 					;;
 
 
-				*)
-		
-					;;
+		 	 	*)
+ 	 	
+		  			;;
 			esac  # "$event_type"
 			
 			echo
@@ -438,3 +545,19 @@ done  # while true - inotifywait
 
 exit 0	# probably never reached, but ...
 
+############################
+doublequote=\"
+caret=$'^'
+dollar=$'$'
+#	winname="$(escape_bad_chars_in_winname "$winname")"
+	winname="blork"
+	fw_winname="$caret""$winname""$dollar"	# make sure title begins and ends with winname, not just contains it
+	
+	datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
+	mark="fmwd_""$datestr"
+	echo winname=\'"$winname"\'
+	redir="$LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log"
+	echo redir=\'"$redir"\'
+str="for_window \[title=$doublequote$fw_winname$doublequote\] exec $move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc > $redir 2>&1"
+echo str= \'"$str"\'
+perl -E 'say shift'  "$str"
