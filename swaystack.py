@@ -24,6 +24,17 @@ import argparse
 import i3ipc
 
 
+def get_output(con):
+    ret = con
+
+    while ret:
+        if ret.type == "output":
+            break
+        ret = ret.parent
+
+    return ret
+
+
 def get_stack_top(stack_num):
     num = stack_num % 10
     return max(w.num for w in ipc.get_workspaces()
@@ -43,16 +54,19 @@ def workspace_push(workspace):
 def workspace_pop(workspace):
     workspace_num = workspace.num
     top_num = get_stack_top(workspace_num)
+    output = get_output(workspace)
 
     # if empty, pop from stack
     if not workspace.leaves():
         ipc.command(f"workspace {top_num}")
+        ipc.command(f"move workspace to output {output.name}")
         ipc.command(f"rename workspace {top_num} to {workspace_num}")
 
 
 def workspace_pop_rotate(workspace):
     workspace_num = workspace.num
     top_num = get_stack_top(workspace_num)
+    output = get_output(workspace)
 
     # if workspace not empty, rotate stack before pop
     if workspace.leaves():
@@ -63,12 +77,14 @@ def workspace_pop_rotate(workspace):
 
     # pop
     ipc.command(f"workspace {top_num}")
+    ipc.command(f"move workspace to output {output.name}")
     ipc.command(f"rename workspace {top_num} to {workspace_num}")
 
 
 def workspace_push_rotate(workspace):
     workspace_num = workspace.num
     top_num = get_stack_top(workspace_num)
+    output = get_output(workspace)
 
     # if workspace not empty, push before rotate
     if workspace.leaves():
@@ -77,6 +93,7 @@ def workspace_push_rotate(workspace):
 
     # rotate
     ipc.command(f"workspace {workspace_num+10}")
+    ipc.command(f"move workspace to output {output.name}")
     for n in range(workspace_num+10, top_num+1, 10):
         ipc.command(f"rename workspace {n} to {n-10}")
 
