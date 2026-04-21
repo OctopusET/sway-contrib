@@ -18,7 +18,7 @@ _grimshot_bash_comp() {
 
     # Complete options
     if [[ $first_char == "-" && ${#COMP_WORDS[@]} -eq 2 ]]; then
-        COMPREPLY=( $(compgen -W "--notify --cursor --wait" -- "${COMP_WORDS[COMP_CWORD]}") )
+        COMPREPLY=( $(compgen -W "--notify --cursor --wait --freeze" -- "${COMP_WORDS[COMP_CWORD]}") )
 
     # Complete commands
     elif [[ ${#COMP_WORDS[@]} -eq $cmd_pos ]]; then
