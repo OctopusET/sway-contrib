@@ -9,6 +9,7 @@
 ##  - `jq`: json utility to parse swaymsg output
 ##  - `notify-send`: to show notifications
 ##  - `xdg-open`: optional, to open saved files from notifications
+##  - `wayfreeze`: to freeze displays
 ## Those are needed to be installed, if unsure, run `grimshot check`
 ##
 ## See `man 1 grimshot` or `grimshot usage` for further details.
@@ -21,6 +22,7 @@ echo() {
 
 NOTIFY=no
 CURSOR=
+FREEZE=no
 WAIT=no
 
 getTargetDirectory() {
@@ -46,6 +48,9 @@ parseArgs() {
       ;;
     -c | --cursor)
       CURSOR=yes
+      ;;
+    -f | --freeze)
+      FREEZE=yes
       ;;
     -w | --wait)
       WAIT=
@@ -79,7 +84,7 @@ parseArgs() {
 
 printUsageMsg() {
   echo "Usage:"
-  echo "  grimshot [--notify] [--cursor] [--wait N] (copy|save) [active|screen|output|area|window|anything] [FILE|-]"
+  echo "  grimshot [--notify] [--cursor] [--freeze] [--wait N] (copy|save) [active|screen|output|area|window|anything] [FILE|-]"
   echo "  grimshot check"
   echo "  grimshot usage"
   echo ""
@@ -180,6 +185,7 @@ takeScreenshot() {
     grim ${CURSOR:+-c} -g "$GEOM" "$FILE" || die "Unable to invoke grim"
   fi
 }
+
 checkRequiredTools() {
   echo "Checking if required tools are installed. If something is missing, install it to your system and make it available in PATH..."
   check grim
@@ -189,6 +195,7 @@ checkRequiredTools() {
   check jq
   check notify-send
   check xdg-open
+  check wayfreeze
   exit
 }
 
@@ -227,6 +234,7 @@ selectAnything() {
   [ -z "$GEOM" ] && exit 1
   WHAT="Selection"
 }
+
 handleSaveCopy() {
   wl-copy --type image/png <"$FILE" || die "Clipboard error"
   MESSAGE="$MESSAGE and clipboard"
@@ -256,9 +264,17 @@ handleSave() {
     handleScreenshotFailure
   fi
 }
+
 handleUnknownSubject() {
   die "Unknown subject to take a screenshot from" "$SUBJECT"
 }
+
+handleFreeze() {
+  wayfreeze &
+  FREEZE_PID=$!
+  sleep .1;
+}
+
 handleScreenshot() {
   case "$ACTION" in
     check)
@@ -267,6 +283,8 @@ handleScreenshot() {
     *)
       printUsageMsg ;;
   esac
+
+  [ "$FREEZE" != "no" ] && handleFreeze
 
   case "$SUBJECT" in
     area)
@@ -291,6 +309,10 @@ handleScreenshot() {
     handleCopy
   else
     handleSave
+  fi
+
+  if [ "$FREEZE" != "no" ]; then
+    kill $FREEZE_PID
   fi
 }
 

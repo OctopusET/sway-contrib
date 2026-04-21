@@ -6,7 +6,7 @@ grimshot - a helper for screenshots within sway
 
 # SYNOPSIS
 
-*grimshot* [--notify] [--cursor] [--wait N] (copy|save) [TARGET] [FILE]++
+*grimshot* [--notify] [--cursor] [--freeze] [--wait N] (copy|save) [TARGET] [FILE]++
 *grimshot* check++
 *grimshot* usage
 
@@ -19,6 +19,9 @@ grimshot - a helper for screenshots within sway
 
 *--cursor*
 	Include cursors in the screenshot.
+
+*--freeze*
+	Freeze displays before taking screenshot.
 
 *--wait N*
 	Wait for N seconds before taking a screenshot. Waits after any
