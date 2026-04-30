@@ -10,6 +10,7 @@ Dependencies:
 Recommendations:
 `wl-copy`: clipboard utility
 `notify-send`: desktop notifications sender
+`wayfreeze`: utility for freezing screen
 '''
 
 __pkgname__ = 'grimpicker'
@@ -18,6 +19,7 @@ __version__ = '1.0.0'
 import argparse
 import subprocess
 import sys
+import time
 
 
 class Color:
@@ -78,8 +80,21 @@ class Color:
 
 
 def run(args) -> None:
-    slurp = subprocess.check_output(('slurp', '-p'))
-    grim = subprocess.check_output(('grim', '-g', '-', '-t', 'ppm', '-'), input=slurp)
+    if args.freeze:
+        freeze_proc = subprocess.Popen(('wayfreeze', '--hide-cursor'))
+        time.sleep(0.1)
+    
+    try:
+        slurp = subprocess.check_output(('slurp', '-p'))
+        grim = subprocess.check_output(('grim', '-g', '-', '-t', 'ppm', '-'), input=slurp)
+    except subprocess.CalledProcessError:
+        if args.freeze:
+            freeze_proc.terminate()
+        sys.exit()
+    
+    if args.freeze:
+        freeze_proc.terminate()
+    
     color = Color.decode_ppm_pixel(grim)
 
     if not (args.print or args.draw or args.escape or args.copy or args.notify):
@@ -119,6 +134,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-d', '--draw', dest='draw', action='store_true', help='Draw a colored block')
     parser.add_argument('-e', '--escape', dest='escape', action='store_true', help='Print shell escape sequences')
     parser.add_argument('-c', '--copy', dest='copy', action='store_true', help='Copy to clipboard')
+    parser.add_argument('-f', '--freeze', dest='freeze', action='store_true', help='Freeze screen before picking')
     parser.add_argument('-n', '--notify', dest='notify', action='store_true', help='Send a notification')
     parser.add_argument('-h', '--help', action='help', help='Show help message and quit')
     parser.add_argument('-v', '--version', action='version', version=version, help='Show version number and quit')

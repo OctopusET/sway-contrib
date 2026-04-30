@@ -22,6 +22,9 @@ grimpicker - a simple color picker for wlroots
 *-c*, *--copy*
 	Copy to clipboard
 
+*-f*, *--freeze*
+	Freeze screen before picking
+
 *-n*, *--notify*
 	Send a notification
 
