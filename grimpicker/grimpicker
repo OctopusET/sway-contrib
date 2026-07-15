@@ -107,7 +107,7 @@ def run(args) -> None:
     if args.copy:
         subprocess.run(('wl-copy', color.to_hex()), check=True)
     if args.notify:
-        subprocess.run(('notify-send', color.to_hex()), check=True)
+        subprocess.run(('notify-send', '--app-name', 'grimpicker', color.to_hex()), check=True)
 
 
 def parse_args() -> argparse.Namespace:
