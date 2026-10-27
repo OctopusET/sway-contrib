@@ -14,6 +14,8 @@ grimshot - a helper for screenshots within sway
 
 *--notify*
 	Show notifications to the user that a screenshot has been taken.
+	When saving to a file and *xdg-open*(1) is available, the notification
+	offers actions to open the file or its directory.
 
 *--cursor*
 	Include cursors in the screenshot.
