@@ -1,18 +1,35 @@
 name: CI
 
-on: pull_request
+on: [push, pull_request]
 
 jobs:
-  linux:
+  python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses:  actions/setup-python@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: '3.10'
+          python-version: '3.x'
           cache: 'pip'
       - run: pip install -U -r requirements.txt -r requirements-dev.txt
       - name: Lint Python
-        run: ruff check --output-format=github **.py
+        run: ruff check --output-format=github . grimpicker/grimpicker
       - name: Check Python type annotations
-        run:  mypy **.py
+        run: mypy *.py grimpicker/grimpicker
+
+  shell:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Lint shell scripts
+        run: |
+          shellcheck -S warning -e SC2034 grimshot/grimshot grimshot/functional-helpers
+          shellcheck -S error float-window-manager/float-window-managerd.sh
+
+  man:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y scdoc
+      - name: Build man pages
+        run: for f in */*.1.scd; do scdoc < "$f" > /dev/null; done
