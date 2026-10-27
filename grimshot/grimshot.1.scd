@@ -35,7 +35,8 @@ grimshot - a helper for screenshots within sway
 	A variable set in the environment takes precedence over
 	*user-dirs.dirs*.
 	Set FILE to '-' to pipe the output to STDOUT.
-	Set GRIMSHOT_FILENAME_FORMAT env variable to override the default filename.
+	Set GRIMSHOT_FILENAME_FORMAT env variable to a *date*(1) format string to
+	override the default filename.
 
 *copy*
 	Copy the screenshot data (as image/png) into the clipboard.
@@ -70,7 +71,7 @@ bindsym Mod4+Ctrl+p  exec grimshot save window
 And/or add these environment variables to your shell configuration:
 
 ```
-export GRIMSHOT_FILENAME_FORMAT="$(date --iso-8601=ns | tr ':' -)"
+export GRIMSHOT_FILENAME_FORMAT='%Y-%m-%dT%H-%M-%S'
 ```
 
 # TARGETS
