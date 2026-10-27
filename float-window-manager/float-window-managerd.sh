@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # $HOME/.local/bin/float-window-managerd.sh
-# This version, called -new, utilizes an auxilliary script: fwmd-move_window.sh
+# Uses an auxiliary script: fwmd-move_window.sh
 
 # (11/2025) New version (at least to try...)
 # Since Sway does not allow floating-point percentages in its move window command, I will try to get around that by
@@ -9,7 +9,7 @@
 # Instead of immediately moving the window with percentages, we will mark the window, and then call a script that will
 # move it with pixel positioning by using the desired floating-point percentages against the currently-focussed output's
 # dimensions and position.
-# The script will take as parameters the mark and the x and y percentages.
+# The script will take the mark as parameter and read the x and y percentages saved for the window's title.
 # The mark needs to be unique, and it could be that several for_window s would be called closely enough together to cause a race
 # situation, so I will use the date command with whatever option causes a single date/time (or just time) to be output.
 # The script will call swaymsg -t get_tree 
@@ -84,6 +84,13 @@ if [[ ! -f "$move_window_script_path/fwmd-move_window.sh" ]]; then
 	notify-send "'"$move_window_script_path/fwmd-move_window.sh"' not found."
 fi
 
+move_window_cmd=$(printf '%q' "$move_window_script_path/fwmd-move_window.sh")
+move_window_log="/dev/null"
+if [[ -n "$LOGS" ]]; then
+	move_window_log="$LOGS/fwmd-move_window.log"
+fi
+log_redirect=" >> $(printf '%q' "$move_window_log") 2>&1"
+
 
 
 winpath="$HOME/.config/sway/float_window_store/"
@@ -116,6 +123,26 @@ escape_bad_chars_in_winname() {
 	echo "$winname_escape"
 }
 
+# One rule per title: the move window script reads the saved percentages when it runs,
+# so saving a new position needs no new rule (sway cannot remove for_window rules).
+declare -A has_rule
+add_for_window_rule() {
+	local winname="$1" fw_winname mark
+
+	[[ -n "${has_rule["$winname"]}" ]] && return
+	fw_winname="$caret$(escape_bad_chars_in_winname "$winname")$dollar"	# make sure title begins and ends with winname, not just contains it
+	mark="fmwd_$(date +%Y%m%d:%H%M%S:%N)"
+	if ! swaymsg_output=$(swaymsg -- for_window "[title=\"$fw_winname\"]" mark --add "$mark"); then
+		echo Window \'"$winname"\':  for_window mark "$mark" fails with message: \'"$swaymsg_output"\'
+		return
+	fi
+	if ! swaymsg_output=$(swaymsg -- for_window "[title=\"$fw_winname\"]" exec "$move_window_cmd $mark$log_redirect"); then
+		echo Window \'"$winname"\':  for_window exec move_window_script fails with message: \'"$swaymsg_output"\'
+		return
+	fi
+	has_rule["$winname"]=1
+}
+
 
 unset_arrays() {
 	unset already_processed["$con_id"]
@@ -133,9 +160,7 @@ unset_arrays() {
 	echo Arrays unset...
 }
 
-old_percent_regex="^[+-]?[0-9]{1,2}$"					# integer -> +/- plus 1 or 2 digits 0-9
-		 percent_regex="^[0-9]{1,2}(\.{1}[0-9]+)?$"		# float   -> above, plus 0 or 1 ("?") "single dot + 1 or more ("+") digits"
-# (Why were we accepting negative percentages here, when we were disallowing them below...?)
+percent_regex="^[0-9]{1,2}(\.{1}[0-9]+)?$"		# 1 or 2 digits, optionally a dot and 1 or more digits
 
 
 # Make a Sway for_window rule for each file in $winpath, using the filename as title, and the contents as x and y percentages
@@ -171,22 +196,7 @@ for file in $winpath/*; do
 	fi
 	echo "   --\> percentages OK."
 
-	winname="$(escape_bad_chars_in_winname "$winname")"
-	fw_winname="$caret""$winname""$dollar"	# make sure title begins and ends with winname, not just contains it
-	
-	datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
-	mark="fmwd_""$datestr"
-	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_winname$doublequote\] mark "$mark")
-	result=$?
-	if [[ ! "$result" == 0 ]]; then
-		echo Window \'"$winname"\':  for_window mark $mark fails with message: \'"$swaymsg_output"\'
-	fi
-#	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$winname$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc")
-	swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_winname$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log 2>&1")
-	result=$?
-	if [[ ! "$result" == 0 ]]; then
-		echo Window \'"$winname"\':  for_window exec move_window_script fails with message: \'"$swaymsg_output"\'
-	fi
+	add_for_window_rule "$winname"
 done
 
 
@@ -239,9 +249,6 @@ notify-send "...starting Float Window Manager..."
 
 scale=4
 echo scale=\'"$scale"\'
-zeros="000000000"
-round='.'${zeros:0:$scale}"5"
-echo round=\'"$round"\'
 
 # We will constantly monitor (-m) we_file, and when it changes, write stuff (we don't care what) to inw_file
 # Later, instead of constantly looping to see if we_file has had more lines added to it (and thus use 20-25% CPU),
@@ -259,7 +266,7 @@ echo now starting to read window new and close events from file
 i=1
 while true; do
 	while true; do
-		IFS=$'\n' read -d '\n' -a we_array < <(tail -n +"$i" "$we_file" )  # read from line $i to [current] EOF
+		mapfile -t we_array < <(tail -n +"$i" "$we_file")  # read from line $i to [current] EOF
 		num_events="${#we_array[@]}"
 		if [[ "$num_events" == 0 ]]; then
  			break;  # while true - inner loop - go back to waiting in outer 'while true' loop
@@ -277,7 +284,7 @@ while true; do
    			IFS=$'\t' read -r event_type  con_id  event_win_type  event_win_x  event_win_y  event_win_name  \
    						  < <(echo "$we"  | jq -r '. as $root | 
   											$root.container as $con | [$root.change, $con.id,
-  											$con.type, $con.rect.x, $con.rect.y, $con.name // "NuLlnUlLNuLlnUlL"]  | @tsv ')
+  											$con.type, $con.rect.x, $con.rect.y, $con.name // "NuLlnUlLNuLlnUlL"]  | map(tostring) | join("\t")')
 			echo \'"$event_win_name"\'
 			event_win_name=${event_win_name//NuLlnUlLNuLlnUlL/}
 			echo \'"$event_win_name"\'
@@ -322,7 +329,7 @@ while true; do
 						jq -r --arg CONID "$con_id" '. as $root | $root.nodes[] as $output | $output.nodes[] as $ws |
 				 		$ws.floating_nodes[] as $win | select ( $win.id == ($CONID | tonumber) ) | 
 				  		[$win.type, $win.rect.x, $win.rect.y, $win.deco_rect.height, $ws.name, $ws.rect.x, $ws.rect.y,
-				  		  $output.rect.width, $output.rect.height, $output.rect.x, $output.rect.y, $win.name // "NuLlnUlLNuLlnUlL"] | @tsv')
+				  		  $output.rect.width, $output.rect.height, $output.rect.x, $output.rect.y, $win.name // "NuLlnUlLNuLlnUlL"] | map(tostring) | join("\t")')
 				  	result=$?
 				  	if [[ "$result" != 0 ]]; then
 					  	echo result=\'"$result"\'  ...apparently window matching con_id=\'"$con_id"\' is not floating  -  aborting this event...
@@ -377,17 +384,17 @@ while true; do
 									if [[ "$event_type" == "to_floating" ]]; then	# we have to move the window ourselves.
 										datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
 										mark="fmwd_""$datestr"
-										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] mark "$mark")
+										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] mark --add "$mark")
 										result=$?
 										if [[ "$result" != 0 ]]; then
 											echo Window \'"$wn"\':  \"mark "$mark"\" fails with message: \'"$swaymsg_output"\'
 											unset_arrays
 											continue  # for we in "${we_array[@]}"
 										fi
-										swaymsg_output=$(swaymsg -- \[con_id=$con_id\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc  >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${wn}_$mark.log 2>&1")
+										"$move_window_script_path/fwmd-move_window.sh" "$mark" >> "$move_window_log" 2>&1
 										result=$?
 										if [[ "$result" != 0 ]]; then
-											echo Window \'"$wn"\':  \"move position\" fails with \'"$result"\' and message: \'"$swaymsg_output"\'
+											echo Window \'"$wn"\':  \"move position\" fails with \'"$result"\'
 											unset_arrays
 											continue  # for we in "${we_array[@]}"
 										fi
@@ -473,14 +480,14 @@ while true; do
 # I STILL do not know why ws_y seems to be universally "38", as my bar height is set to "20" ("14" on laptop)
 
 						xperc=$(echo "$rel_x / $opw * 100" | bc -l)
-						xperc=$(echo "scale=$scale; ($xperc + $round) / 1" | bc -l)
+						xperc=$(LC_NUMERIC=C printf "%.${scale}f" "$xperc")
 
 # With my new percentage system, the window's position at close equals its position when next open, EXCEPT for border="normal"
 # windows, whose x position is as saved, but y position is too low by 27, which is win_deco_height.  So BEFORE calculating percentages,
 # we will subtract win_deco_height from the ypos.  win_deco_height is zero, except for "normal" windows, so we can do it for all windows.
 						rel_y=$(("$rel_y"-"${win_deco_height["$con_id"]}"))
 						yperc=$(echo "$rel_y / $oph * 100" | bc -l)
-						yperc=$(echo "scale=$scale; ($yperc + $round) / 1" | bc -l)
+						yperc=$(LC_NUMERIC=C printf "%.${scale}f" "$yperc")
 
 						echo xperc: $xperc,  yperc: $yperc
 						file="$winpath""$event_win_name"
@@ -493,24 +500,7 @@ while true; do
 
 							if [[ "$event_type" == "close" ]]; then
 								echo window \"$event_win_name\" - position saved.
-								echo Making new/changed "for_window"  for \'"$event_win_name"\' ...
-								echo wn before: \'"$event_win_name"\'        xperc= \'"$xperc"\'  yperc= \'"$yperc"\'
-								event_win_name="$(escape_bad_chars_in_winname "$event_win_name")"
-								echo wn after:  \'"$event_win_name"\'
-								fw_event_win_name="$caret""$event_win_name""$dollar"	# make sure title begins and ends with winname, not just contains it
-
-								datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
-								mark="fmwd_""$datestr"
-								swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_event_win_name$doublequote\] mark "$mark")
-								result=$?
-								if [[ "$result" != 0 ]]; then
-									echo Window \'"$event_win_name"\':  for_window mark "$mark" fails with message: \'"$swaymsg_output"\'
-								fi
-								swaymsg_output=$(swaymsg -- for_window \[title=$doublequote$fw_event_win_name$doublequote\] exec "$move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc  >> $LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log 2>&1")
-								result=$?
-								if [[ "$result" != 0 ]]; then
-									echo Window \'"$event_win_name"\':  for_window exec move_window_script fails with message: \'"$swaymsg_output"\'
-								fi
+								add_for_window_rule "$event_win_name"
 							else
 								echo originally-tiled window \"$event_win_name\" - position saved.
 							fi
@@ -544,20 +534,3 @@ while true; do
 done  # while true - inotifywait
 
 exit 0	# probably never reached, but ...
-
-############################
-doublequote=\"
-caret=$'^'
-dollar=$'$'
-#	winname="$(escape_bad_chars_in_winname "$winname")"
-	winname="blork"
-	fw_winname="$caret""$winname""$dollar"	# make sure title begins and ends with winname, not just contains it
-	
-	datestr="$(date +%Y%m%d:%H%M%S:%N)"	# format (+) date as "nanoseconds (000000000..999999999)" (%N)
-	mark="fmwd_""$datestr"
-	echo winname=\'"$winname"\'
-	redir="$LOGS/$(date +"%Y%m%d:%H%M%S_")${winname}_$mark.log"
-	echo redir=\'"$redir"\'
-str="for_window \[title=$doublequote$fw_winname$doublequote\] exec $move_window_script_path/fwmd-move_window.sh $mark $xperc $yperc > $redir 2>&1"
-echo str= \'"$str"\'
-perl -E 'say shift'  "$str"
