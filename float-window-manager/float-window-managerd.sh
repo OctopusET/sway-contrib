@@ -76,15 +76,20 @@ if [ "$(echo -e "$version\n$min_version" | sort -V | head -n 1)" != "$min_versio
 	exit 1
 fi
 
-move_window_script_path="$HOME/.local/bin"
-if [[ ! -f "$move_window_script_path/fwmd-move_window.sh" ]]; then
+# Look next to this script first (packages install both into the same directory),
+# then in PATH, then in the old hard-coded location.
+move_window_script="$(dirname "$(readlink -f "$0")")/fwmd-move_window.sh"
+if [[ ! -f "$move_window_script" ]]; then
+	move_window_script=$(command -v fwmd-move_window.sh) || move_window_script="$HOME/.local/bin/fwmd-move_window.sh"
+fi
+if [[ ! -f "$move_window_script" ]]; then
 	echo "float-window-manager: move window script:"
-	echo \'"$move_window_script_path/fwmd-move_window.sh"\' not found.
+	echo \'"$move_window_script"\' not found.
 	notify-send "float-window-manager: move window script:"
-	notify-send "'"$move_window_script_path/fwmd-move_window.sh"' not found."
+	notify-send "'"$move_window_script"' not found."
 fi
 
-move_window_cmd=$(printf '%q' "$move_window_script_path/fwmd-move_window.sh")
+move_window_cmd=$(printf '%q' "$move_window_script")
 move_window_log="/dev/null"
 if [[ -n "$LOGS" ]]; then
 	move_window_log="$LOGS/fwmd-move_window.log"
@@ -391,7 +396,7 @@ while true; do
 											unset_arrays
 											continue  # for we in "${we_array[@]}"
 										fi
-										"$move_window_script_path/fwmd-move_window.sh" "$mark" >> "$move_window_log" 2>&1
+										"$move_window_script" "$mark" >> "$move_window_log" 2>&1
 										result=$?
 										if [[ "$result" != 0 ]]; then
 											echo Window \'"$wn"\':  \"move position\" fails with \'"$result"\'

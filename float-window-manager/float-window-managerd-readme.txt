@@ -49,8 +49,9 @@ jq is from the identically-named package jq, and notify-send is from libnotify-b
 
 How to use:
 
-Move/copy the scripts to somewhere in your $PATH.
-[The second script is hard-coded to "$HOME/.local/bin/" Edit the main script to where you want it.]
+Move/copy both scripts to somewhere in your $PATH.
+fwmd-move_window.sh is looked up next to float-window-managerd.sh first, then in $PATH,
+then in "$HOME/.local/bin/".
 Add a line to the config file similar to the following, which I use:
 exec float-window-managerd.sh > $LOGS/$(date +"%Y%m%d:%H%M%S_")float-window-managerd.log 2>&1
 (I don't know if there would be any advantage with using exec_always - I don't know if
