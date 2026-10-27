@@ -18,11 +18,17 @@ This caused the positioning to be inexact, as the x position for a 4K/UHD screen
 up to 38-40 pixels off, and the y position up to 21 pixels off (3840/4096 x 2160). (even worse
 with an 8K screen (7680 x 4320)!)]
 Now, the for_window command first "mark"s the window, and then calls a second script with
-the unique mark and the desired percentages.  The second script calculates the exact x and y
-positions based on the window's output's dimensions and position, and the percentages.
+the unique mark.  The second script reads the percentages stored for the window's title, and
+calculates the exact x and y positions based on the window's output's dimensions and position,
+and the percentages.
 "move absolute position" is called for the window with the mark, with the calculated position.
 Percentages calculated/stored are now floating point numbers, and the positions should now
-be "pixel perfect". 
+be "pixel perfect".
+
+The rule matches the whole title exactly, not a substring: a stored "Firefox" does not
+place a window titled "Mozilla Firefox".  Earlier versions matched any title containing it.
+Each title gets one rule per daemon run.  Saving a new position only rewrites the file, which
+the second script reads when the window next appears.
 
 Float Window Manager also remembers where you place windows that HAD BEEN tiling, but that
 you have converted to floating.
@@ -51,6 +57,8 @@ exec float-window-managerd.sh > $LOGS/$(date +"%Y%m%d:%H%M%S_")float-window-mana
 Sway throws out all existing for_window rules for a config-reload.)
 If you wish to look at the log file, then use the re-directs, and define $LOGS to be where
 you want to find logs, or use an already defined location.
+If $LOGS is set when the daemon starts, the second script appends its output to
+$LOGS/fwmd-move_window.log.  $LOGS is not required.
 Presumably, you'll want to have the line earlier in the config than when where you call the
 first app that has a floating window that you want to move... (cannot rule out possible
 race conditions, of course...), 'though after Mako (or similar notification app).
@@ -63,6 +71,8 @@ still be there.  If there are a lot, it could be slow, maybe ending up with the 
 twice (or more).
 Turning it off can be done with commenting-out/deleting the config-file line, and logging
 out/in again.
+Restarting the daemon without restarting Sway adds another rule per stored title.  All of
+them read the same file, so the window still ends up in the same place.
 
 How it works:
 Float Window Manager is a daemon (I believe how it works qualifies for that term) that sits
