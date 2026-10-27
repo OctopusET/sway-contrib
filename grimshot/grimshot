@@ -8,6 +8,7 @@
 ##  - `wl-copy`: clipboard utility
 ##  - `jq`: json utility to parse swaymsg output
 ##  - `notify-send`: to show notifications
+##  - `xdg-open`: optional, to open saved files from notifications
 ## Those are needed to be installed, if unsure, run `grimshot check`
 ##
 ## See `man 1 grimshot` or `grimshot usage` for further details.
@@ -100,16 +101,18 @@ printUsageMsg() {
 }
 
 notify() {
-  if [ "$ACTION" = "copy" ]; then
-    notify-send -t 3000 -a grimshot "$@"
-  else
+  notify-send -t 3000 -a grimshot "$@"
+}
+
+# --action implies --wait, so run detached to not block the caller.
+notifyWithActions() {
+  (
     action=$(notify-send -t 3000 -a grimshot --action=file='Open File' --action=dir='Open Directory' "$@")
-    if [ "$action" = "file" ]; then
-      xdg-open "$FILE"
-    elif [ "$action" = "dir" ]; then
-      xdg-open "$(dirname "$FILE")"
-    fi
-  fi
+    case "$action" in
+    file) xdg-open "$FILE" ;;
+    dir) xdg-open "$(dirname "$FILE")" ;;
+    esac
+  ) </dev/null >/dev/null 2>&1 &
 }
 
 notifyOk() {
@@ -123,7 +126,12 @@ notifyOk() {
   MESSAGE=${1:-"OK"}
 
   if [ "$ACTION" = "save" ] || [ "$ACTION" = "savecopy" ]; then
-    notify "$TITLE" "$MESSAGE" -i "$FILE"
+    if [ "$FILE" != "-" ] && command -v xdg-open >/dev/null 2>&1 &&
+      notify-send --help 2>/dev/null | grep -q -- --action; then
+      notifyWithActions "$TITLE" "$MESSAGE" -i "$FILE"
+    else
+      notify "$TITLE" "$MESSAGE" -i "$FILE"
+    fi
   else
     notify "$TITLE" "$MESSAGE"
   fi
