@@ -46,6 +46,8 @@ It has several output options, they can be combined.
 
 _--copy_ needs *wl-clipboard* to be installed.
 
+_--freeze_ needs *wayfreeze* to be installed.
+
 _--draw_ and _--escape_ need a terminal with truecolor support (e.g. *foot*).
 
 _--notify_ needs *libnotify* to be installed

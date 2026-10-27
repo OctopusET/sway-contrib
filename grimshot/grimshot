@@ -9,7 +9,7 @@
 ##  - `jq`: json utility to parse swaymsg output
 ##  - `notify-send`: to show notifications
 ##  - `xdg-open`: optional, to open saved files from notifications
-##  - `wayfreeze`: to freeze displays
+##  - `wayfreeze`: optional, to freeze displays with --freeze
 ## Those are needed to be installed, if unsure, run `grimshot check`
 ##
 ## See `man 1 grimshot` or `grimshot usage` for further details.
@@ -199,14 +199,9 @@ checkRequiredTools() {
   exit
 }
 
-quit() {
-  [ "$FREEZE" != "no" ] && kill $FREEZE_PID
-  exit 1
-}
-
 selectArea() {
   GEOM=$(slurp -d)
-  [ -z "$GEOM" ] && quit
+  [ -z "$GEOM" ] && exit 1
   WHAT="Area"
 }
 
@@ -230,13 +225,13 @@ selectOutput() {
 
 selectWindow() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -r)
-  [ -z "$GEOM" ] && quit
+  [ -z "$GEOM" ] && exit 1
   WHAT="Window"
 }
 
 selectAnything() {
   GEOM=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp -o)
-  [ -z "$GEOM" ] && quit
+  [ -z "$GEOM" ] && exit 1
   WHAT="Selection"
 }
 
@@ -275,11 +270,15 @@ handleUnknownSubject() {
 }
 
 handleFreeze() {
-  if [[ -z "$CURSOR" ]] then
+  command -v wayfreeze >/dev/null 2>&1 || die "wayfreeze not found"
+  if [ -z "$CURSOR" ]; then
     notCursor="--hide-cursor"
   fi
-  wayfreeze $notCursor &
+  # Must not hold the caller's stdio open, e.g. $(grimshot save area) or "save area -".
+  wayfreeze $notCursor </dev/null >/dev/null 2>&1 &
   FREEZE_PID=$!
+  trap 'kill $FREEZE_PID 2>/dev/null' EXIT
+  trap 'exit 1' HUP INT TERM
   sleep .1;
 }
 
@@ -317,10 +316,6 @@ handleScreenshot() {
     handleCopy
   else
     handleSave
-  fi
-
-  if [ "$FREEZE" != "no" ]; then
-    kill $FREEZE_PID
   fi
 }
 
