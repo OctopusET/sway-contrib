@@ -17,6 +17,7 @@ __pkgname__ = 'grimpicker'
 __version__ = '1.0.0'
 
 import argparse
+import signal
 import subprocess
 import sys
 import time
@@ -80,21 +81,26 @@ class Color:
 
 
 def run(args) -> None:
+    freeze: subprocess.Popen[bytes] | None = None
     if args.freeze:
-        freeze_proc = subprocess.Popen(('wayfreeze', '--hide-cursor'))
-        time.sleep(0.1)
-    
+        # Turn SIGHUP and SIGTERM into SystemExit so the finally below unfreezes the screen.
+        for sig in (signal.SIGHUP, signal.SIGTERM):
+            signal.signal(sig, lambda signum, _: sys.exit(128 + signum))
+        try:
+            freeze = subprocess.Popen(('wayfreeze', '--hide-cursor'), stdin=subprocess.DEVNULL,
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            sys.exit('{}: wayfreeze not found'.format(__pkgname__))
+
     try:
+        if freeze:
+            time.sleep(0.1)
         slurp = subprocess.check_output(('slurp', '-p'))
         grim = subprocess.check_output(('grim', '-g', '-', '-t', 'ppm', '-'), input=slurp)
-    except subprocess.CalledProcessError:
-        if args.freeze:
-            freeze_proc.terminate()
-        sys.exit()
-    
-    if args.freeze:
-        freeze_proc.terminate()
-    
+    finally:
+        if freeze:
+            freeze.terminate()
+
     color = Color.decode_ppm_pixel(grim)
 
     if not (args.print or args.draw or args.escape or args.copy or args.notify):

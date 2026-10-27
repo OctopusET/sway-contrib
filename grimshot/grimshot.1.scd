@@ -21,7 +21,7 @@ grimshot - a helper for screenshots within sway
 	Include cursors in the screenshot.
 
 *--freeze*
-	Freeze displays before taking screenshot.
+	Freeze displays before taking screenshot. Requires *wayfreeze*.
 
 *--wait N*
 	Wait for N seconds before taking a screenshot. Waits after any
