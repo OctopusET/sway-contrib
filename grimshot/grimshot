@@ -15,7 +15,7 @@
 # Override standard echo to avoid confusing errors if, for example, a user
 # provides options like "-w -n" to the program.
 echo() {
-  printf '%b\n' "$*"
+  printf '%s\n' "$*"
 }
 
 NOTIFY=no
@@ -23,17 +23,22 @@ CURSOR=
 WAIT=no
 
 getTargetDirectory() {
-  if [ -z "${XDG_SCREENSHOTS_DIR+set}${XDG_PICTURES_DIR+set}" ]; then
-    test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
-      . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
-  fi
+  # The environment takes precedence over user-dirs.dirs, per variable.
+  screenshots=$XDG_SCREENSHOTS_DIR
+  pictures=$XDG_PICTURES_DIR
+  test -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" &&
+    . "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
 
-  echo "${XDG_SCREENSHOTS_DIR:-${XDG_PICTURES_DIR:-$HOME}}"
+  echo "${screenshots:-${XDG_SCREENSHOTS_DIR:-${pictures:-${XDG_PICTURES_DIR:-$HOME}}}}"
 }
 
 parseArgs() {
-  for arg; do
+  # Count down instead of "for arg" so that -w can consume its value.
+  n=$#
+  while [ "$n" -gt 0 ]; do
+    arg=$1
     shift
+    n=$((n - 1))
     case "$arg" in
     -n | --notify)
       NOTIFY=yes
@@ -42,12 +47,17 @@ parseArgs() {
       CURSOR=yes
       ;;
     -w | --wait)
-      WAIT="$1"
-      shift
+      WAIT=
+      if [ "$n" -gt 0 ]; then
+        WAIT="$1"
+        shift
+        n=$((n - 1))
+      fi
       if echo "$WAIT" | grep -q "[^0-9]"; then
         echo "invalid value for wait '$WAIT'" >&2
         exit 3
       fi
+      WAIT=${WAIT:-no}
       ;;
     *)                   # Treat anything else as a positional argument
       set -- "$@" "$arg" # Re-append to arguments.
@@ -235,7 +245,7 @@ handleScreenshot() {
   case "$ACTION" in
     check)
       checkRequiredTools ;;
-    save | copy | savecopy | check) : ;; # nothing
+    save | copy | savecopy) : ;; # nothing
     *)
       printUsageMsg ;;
   esac
