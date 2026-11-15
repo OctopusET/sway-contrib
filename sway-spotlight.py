@@ -21,6 +21,7 @@ width_states = {}
 # find split fraction based on window count
 # set all windows widths back to split fraction
 
+
 def restore_default_split():
     global sway, width_states
 
@@ -42,13 +43,14 @@ def restore_default_split():
     for win in leaves:
         sway.command(f'[con_id="{win.id}"] resize set width {width_target_px} px')
 
+
 def toggle_focus():
     global sway, width_states
-    
+
     # get tree & focused window from sway
     tree = sway.get_tree()
     focused = tree.find_focused()
-    
+
     # safety check
     if not focused or focused.type != "con":
         return
@@ -74,6 +76,7 @@ def find_keyboard():
                     return device
         time.sleep(1)
 
+
 dev = find_keyboard()
 
 # This is straight from gemini, not gonna lie
@@ -98,29 +101,24 @@ for event in dev.read_loop():
             active_keys.add(key.scancode)
         elif key.keystate == key.key_up:
             active_keys.discard(key.scancode)
-        
-        if (ecodes.KEY_LEFTMETA in active_keys and 
-            ecodes.KEY_LEFTSHIFT in active_keys and
-            ecodes.KEY_F in active_keys and
-            key.keystate == key.key_down
+
+        if (
+            ecodes.KEY_LEFTMETA in active_keys
+            and ecodes.KEY_LEFTSHIFT in active_keys
+            and ecodes.KEY_F in active_keys
+            and key.keystate == key.key_down
         ):
             toggle_focus()
             continue
 
-        if (ecodes.KEY_LEFTMETA in active_keys and 
-            ecodes.KEY_LEFTSHIFT in active_keys and
-            ecodes.KEY_R in active_keys and
-            key.keystate == key.key_down
+        if (
+            ecodes.KEY_LEFTMETA in active_keys
+            and ecodes.KEY_LEFTSHIFT in active_keys
+            and ecodes.KEY_R in active_keys
+            and key.keystate == key.key_down
         ):
             restore_default_split()
             continue
-        
+
         uinput.write_event(event)
         uinput.syn()
-
-
-
-
-
-
-
