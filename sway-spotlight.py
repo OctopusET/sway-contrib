@@ -2,8 +2,8 @@
 import time
 
 import evdev
-from evdev import categorize, ecodes, UInput
 import i3ipc
+from evdev import UInput, categorize, ecodes
 
 focus_width = 61
 
