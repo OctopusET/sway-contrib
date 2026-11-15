@@ -15,7 +15,7 @@ time.sleep(2)
 sway = i3ipc.Connection(auto_reconnect=True)
 
 # window_id : original width
-width_states = {}
+width_states: dict[int, int] = {}
 
 # get total window count on a workspace
 # find split fraction based on window count
