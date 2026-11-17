@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import time
 
-import evdev
+import evdev # type: ignore[import-not-found]
 import i3ipc
 from evdev import UInput, categorize, ecodes
 
